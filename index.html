@@ -326,7 +326,9 @@ footer{background:var(--ink); color:#fff; padding:24px 14px 20px; text-align:cen
 .sell-price-box{background:var(--orange-light); border-radius:var(--radius); padding:12px; margin:14px 0;}
 .sell-price-row{display:flex; align-items:center; gap:10px;}
 .sell-price-row input{flex:1; border:1.5px solid var(--line); border-radius:8px; padding:9px 10px; font-family:inherit; font-size:13.5px;}
+.sell-price-row input.invalid{border-color:var(--danger); background:#FDEAEA; color:var(--danger);}
 .profit-preview{font-size:12.5px; font-weight:700; color:var(--success); margin-top:8px;}
+.profit-preview.invalid{color:var(--danger);}
 
 /* ===== Reseller three-tier pricing ===== */
 .price-tier-wrap{display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px;}
@@ -654,8 +656,8 @@ footer{background:var(--ink); color:#fff; padding:24px 14px 20px; text-align:cen
   </div>
   <div style="padding:16px 14px 40px;">
     <div style="background:#FDEAEA; border:1px solid #F5C2C2; color:var(--danger); font-size:12.5px; font-weight:600; padding:10px 12px; border-radius:10px; margin-bottom:14px; line-height:1.5;">সম্পূর্ণ ক্যাশ অন ডেলিভারি! প্রোডাক্ট হাতে পেয়ে ডেলিভারি ম্যানকে সম্পূর্ণ টাকা পরিশোধ করুন।</div>
-    <div class="form-field"><label>পূর্ণ নাম *</label><input type="text" id="ordName" placeholder="আপনার নাম লিখুন"></div>
-    <div class="form-field"><label>মোবাইল নাম্বার *</label><input type="tel" id="ordPhone" placeholder="01XXXXXXXXX" maxlength="11" inputmode="numeric"></div>
+    <div class="form-field"><label id="ordNameLabel">পূর্ণ নাম *</label><input type="text" id="ordName" placeholder="আপনার নাম লিখুন"></div>
+    <div class="form-field"><label id="ordPhoneLabel">মোবাইল নাম্বার *</label><input type="tel" id="ordPhone" placeholder="01XXXXXXXXX" maxlength="11" inputmode="numeric"></div>
     <div class="form-field" style="position:relative;">
       <label>জেলা *</label>
       <input type="text" id="ordDistrict" placeholder="জেলার নাম লিখুন বা তালিকা থেকে বাছাই করুন" autocomplete="off">
@@ -742,6 +744,10 @@ let cart = JSON.parse(localStorage.getItem('dps_cart') || '{}');
 let favorites = JSON.parse(localStorage.getItem('dps_favorites') || '[]');
 let currentProductId = null;
 let currentColorSelection = {};
+/* রিসেলার প্রোডাক্ট ডিটেলসে যে Sell Price বসান, তা এখানে ধরে রাখা হয় — যাতে রং সিলেক্ট করার
+   সময় PDP রি-রেন্ডার হলেও (renderPdpIfOpen) আগে বসানো Sell Price হারিয়ে না যায়/Reseller Price-এ
+   ফিরে না যায়। */
+let currentSellPriceInput = {};
 let pdpQuantity = 1;
 let productsLoaded = Object.keys(allProducts).length > 0;
 let productNavDepth = 0;
@@ -1012,7 +1018,8 @@ function computeDiscount(p){
 function itemUnitPrice(item, p){
   const {disc} = computeDiscount(p||{});
   if(isActiveReseller() && p && p.resellerPrice && item && item.sellPrice!=null && !isNaN(item.sellPrice)){
-    return Number(item.sellPrice);
+    /* নিরাপত্তা: বিক্রয়মূল্য কখনোই Reseller Price-এর কম হতে দেওয়া হবে না */
+    return Math.max(Number(item.sellPrice), Number(p.resellerPrice));
   }
   return disc;
 }
@@ -1212,7 +1219,7 @@ function renderPdpIfOpen(){
       <div class="sell-price-box">
         <div class="pdp-section-label" style="margin:0 0 8px;">আপনার বিক্রয়মূল্য (Sell Price)</div>
         <div class="sell-price-row">
-          <input type="number" id="sellPriceInput" placeholder="আপনার বিক্রয়মূল্য (Sell Price)" value="${p.resellerPrice}">
+          <input type="number" id="sellPriceInput" placeholder="আপনার বিক্রয়মূল্য (Sell Price)" value="${currentSellPriceInput[currentProductId] != null ? currentSellPriceInput[currentProductId] : p.resellerPrice}">
           <span style="font-size:12px; color:var(--ink-soft);">টাকা</span>
         </div>
         <div class="profit-preview" id="profitPreview">Profit: ৳0</div>
@@ -1333,21 +1340,38 @@ function renderPdpIfOpen(){
   const buyNowBtn = document.getElementById('pdpBuyNow');
 
   const sellPriceInput = document.getElementById('sellPriceInput');
+  /* বিক্রয়মূল্য (Sell Price) Reseller Price-এর কম কিনা তা যাচাই করে —
+     কম হলে ইনপুট বক্সটি লাল হয়ে থাকবে এবং মান স্বয়ংক্রিয়ভাবে পরিবর্তন করা হবে না,
+     যাতে রিসেলার নিজে দেখে ঠিক করতে পারেন। কম থাকা অবস্থায় Buy Now / কার্টে যোগ করুন কাজ করবে না। */
+  const isSellPriceValid = ()=>{
+    if(!sellPriceInput) return true;
+    return Number(sellPriceInput.value||0) >= Number(p.resellerPrice||0);
+  };
   if(sellPriceInput){
+    sellPriceInput.min = p.resellerPrice || 0;
     const updateProfitPreview = ()=>{
       const sp = Number(sellPriceInput.value||0);
-      const profit = sp - Number(p.resellerPrice||0);
+      const floor = Number(p.resellerPrice||0);
+      const profit = sp - floor;
       const preview = document.getElementById('profitPreview');
-      if(preview) preview.textContent = `Profit: ${fmtTk(profit)}`;
+      const valid = sp >= floor;
+      sellPriceInput.classList.toggle('invalid', !valid);
+      currentSellPriceInput[currentProductId] = sellPriceInput.value; /* রং সিলেক্ট করলেও এই মান মনে থাকবে */
+      if(preview){
+        preview.classList.toggle('invalid', !valid);
+        preview.textContent = valid ? `Profit: ${fmtTk(profit)}` : `Reseller Price-এর কম দেওয়া যাবে না (সর্বনিম্ন ${fmtTk(floor)})`;
+      }
     };
     sellPriceInput.addEventListener('input', updateProfitPreview);
+    sellPriceInput.addEventListener('blur', updateProfitPreview);
     updateProfitPreview();
   }
 
   addCartBtn.onclick = ()=>{
     if(outOfStock){ showToast('এই প্রোডাক্টটি বর্তমানে স্টকে নেই'); return; }
     if(colors.length && !currentColorSelection[currentProductId]){ showToast('অনুগ্রহ করে একটি রঙ নির্বাচন করুন'); return; }
-    const sellPrice = sellPriceInput ? Number(sellPriceInput.value||0) : undefined;
+    if(!isSellPriceValid()){ sellPriceInput.classList.add('invalid'); showToast('বিক্রয়মূল্য Reseller Price-এর কম দেওয়া যাবে না'); return; }
+    let sellPrice = sellPriceInput ? Number(sellPriceInput.value||0) : undefined;
     addToCart(currentProductId, currentColorSelection[currentProductId], pdpQuantity, sellPrice);
     showToast('কার্টে যোগ হয়েছে');
   };
@@ -1355,7 +1379,8 @@ function renderPdpIfOpen(){
   buyNowBtn.onclick = ()=>{
     if(outOfStock){ showToast('এই প্রোডাক্টটি বর্তমানে স্টকে নেই'); return; }
     if(colors.length && !currentColorSelection[currentProductId]){ showToast('অনুগ্রহ করে একটি রঙ নির্বাচন করুন'); return; }
-    const sellPrice = sellPriceInput ? Number(sellPriceInput.value||0) : undefined;
+    if(!isSellPriceValid()){ sellPriceInput.classList.add('invalid'); showToast('বিক্রয়মূল্য Reseller Price-এর কম দেওয়া যাবে না'); return; }
+    let sellPrice = sellPriceInput ? Number(sellPriceInput.value||0) : undefined;
     addToCart(currentProductId, currentColorSelection[currentProductId], pdpQuantity, sellPrice);
     closeProductDetails(true);
     openOrderPanel();
@@ -1576,11 +1601,27 @@ function updateOrderSummary(){
 }
 function openOrderPanel(){
   if(Object.keys(cart).length===0){ showToast('আপনার কার্ট খালি'); return; }
-  if(currentUser && currentUserProfile){
-    const nameEl = document.getElementById('ordName');
-    const phoneEl = document.getElementById('ordPhone');
-    if(currentUserProfile.name && !nameEl.value) nameEl.value = currentUserProfile.name;
-    if(currentUserProfile.phone && !phoneEl.value) phoneEl.value = currentUserProfile.phone;
+  const resellerMode = isActiveReseller();
+  const nameLabel = document.getElementById('ordNameLabel');
+  const phoneLabel = document.getElementById('ordPhoneLabel');
+  const nameInput = document.getElementById('ordName');
+  const phoneInput = document.getElementById('ordPhone');
+  if(resellerMode){
+    nameLabel.textContent = 'কাস্টমারের নাম *';
+    phoneLabel.textContent = 'কাস্টমারের মোবাইল নাম্বার *';
+    nameInput.placeholder = 'কাস্টমারের নাম লিখুন';
+  } else {
+    nameLabel.textContent = 'পূর্ণ নাম *';
+    phoneLabel.textContent = 'মোবাইল নাম্বার *';
+    nameInput.placeholder = 'আপনার নাম লিখুন';
+  }
+  /* রিসেলার হলে এখানে কখনোই নিজের নাম/ফোন/ঠিকানা প্রি-ফিল হবে না —
+     প্রতিবার কাস্টমারের তথ্য নতুন করে দিতে হবে, যাতে কাস্টমারের বদলে ভুলবশত
+     রিসেলারের নিজের তথ্য অর্ডারে চলে না যায়। শুধু সাধারণ (নন-রিসেলার) ইউজারের
+     জন্য তার নিজের সংরক্ষিত তথ্য প্রি-ফিল হবে। */
+  if(currentUser && currentUserProfile && !resellerMode){
+    if(currentUserProfile.name && !nameInput.value) nameInput.value = currentUserProfile.name;
+    if(currentUserProfile.phone && !phoneInput.value) phoneInput.value = currentUserProfile.phone;
     const addr = currentUserProfile.address;
     const districtEl = document.getElementById('ordDistrict');
     if(addr && addr.district && !districtEl.value){
@@ -1657,14 +1698,18 @@ document.getElementById('placeOrderBtn').addEventListener('click', async ()=>{
   let totalProfit = 0;
   const items = Object.values(cart).map(item=>{
     const p = allProducts[item.prodId];
+    /* এডমিন প্যানেলে রিসেলারের সেট করা Sell Price-ই যাবে — কখনোই মূল Reseller/Cost Price-এ
+       ফিরে যাবে না। itemUnitPrice() ইতিমধ্যে Math.max(sellPrice, resellerPrice) দিয়ে এটা
+       নিশ্চিত করে, এখানে আবার একই নিয়মে price রি-কনফার্ম করা হচ্ছে (ডাবল সেফটি)। */
     const price = itemUnitPrice(item, p||{});
     const entry = { productId:item.prodId, name:p?p.name:'', code:p?p.code:'', color:item.color, qty:item.qty, price };
     if(resellerActive && p && p.resellerPrice){
       const rp = Number(p.resellerPrice);
-      const sp = Number(item.sellPrice!=null ? item.sellPrice : rp);
+      const sp = Math.max(Number(item.sellPrice!=null ? item.sellPrice : rp), rp);
       const itemProfit = (sp-rp)*item.qty;
       entry.resellerPrice = rp;
       entry.sellPrice = sp;
+      entry.price = sp; /* কনফার্ম করা হলো: order-এ যাওয়া price = রিসেলারের নিজের বসানো Sell Price */
       entry.itemProfit = itemProfit;
       totalProfit += itemProfit;
     }
@@ -1870,32 +1915,13 @@ function listenUserOrders(uid){
 }
 
 /* Interim client-side balance adjustments (until Admin Panel/cloud functions are connected) */
+/* এই ফাংশনটি ইচ্ছাকৃতভাবে কোনো ব্যালেন্স-পরিবর্তনকারী write করে না।
+   টাকার সব হিসাব (Delivery Cash-Out Charge ক্রেডিট, Return-এ ডেলিভারি চার্জ কর্তন)
+   এখন শুধুমাত্র Admin Panel থেকে একটাই atomic update দিয়ে করা হয় — এখানে করলে
+   Firebase-এর লোকাল+সার্ভার ডাবল-ফায়ার হওয়ার কারণে একই profit দুইবার যোগ হয়ে
+   Available Balance ভুলভাবে বেশি দেখানোর যে বাগ ছিল, সেটার মূল কারণ ছিল এটাই। */
 async function processResellerOrderSideEffects(uid){
-  for(const ord of resellerOrdersCache){
-    if(!ord.orderId) continue;
-    /* কাস্টমার শিপমেন্ট রিসিভ করেনি বলে রিটার্ন/বাতিল হলে ডেলিভারি চার্জ কাটা হবে — স্টক-আউটের কারণে বাতিল হলে কাটা হবে না */
-    if(ord.status === 'cancelled' && ord.cancelReason === 'returned' && !ord.deliveryChargeDeducted){
-      const charge = Number(ord.deliveryCharge||0);
-      try{
-        await db.ref('resellerBalances/'+uid+'/availableBalance').transaction(v=>Number(v||0)-charge);
-        await db.ref('orders/'+ord.orderId+'/deliveryChargeDeducted').set(true);
-      }catch(e){}
-    }
-    /* ডেলিভারি কনফার্ম হলেই (স্টক-আউট/অর্ডার-দেওয়ার সময় নয়) লাভ Available Balance ও Total Earnings উভয়েই যোগ হবে, ক্যাশ-আউট চার্জ কেটে নেওয়ার পরে */
-    if((ord.status === 'completed' || ord.status === 'delivered') && !ord.profitCredited && ord.isResellerOrder){
-      const profit = Number(ord.totalProfit||0);
-      if(profit>0){
-        try{
-          const siteSnap = await db.ref('siteContent/cashOutCharge').once('value');
-          const cashOutCharge = Number((siteSnap.exists()?siteSnap.val():0)||0);
-          const net = Math.max(0, profit - cashOutCharge);
-          await db.ref('resellerBalances/'+uid+'/availableBalance').transaction(v=>Number(v||0)+net);
-          await db.ref('resellerBalances/'+uid+'/totalEarnings').transaction(v=>Number(v||0)+net);
-          await db.ref('orders/'+ord.orderId).update({profitCredited:true, cashOutCharge, deliveredAt: firebase.database.ServerValue.TIMESTAMP});
-        }catch(e){}
-      }
-    }
-  }
+  return;
 }
 
 async function handleRegister(){
@@ -1993,12 +2019,26 @@ document.getElementById('manageAccountSaveBtn').addEventListener('click', async 
 let withdrawSelectedMethod = null;
 let withdrawHistoryCache = [];
 let withdrawCountdownTimer = null;
+/* Pending/Total Withdraw এখন সরাসরি নিজের withdrawRequests থেকে হিসাব করা হয় (stored ফিল্ড থেকে না) —
+   কারণ Firebase Rules অনুযায়ী resellerBalances-এ রিসেলার নিজে লিখতে পারে না (শুধু Admin পারে), তাই
+   এই সংখ্যাগুলো ক্লায়েন্ট-সাইডে হিসাব করাই সবচেয়ে নির্ভরযোগ্য — সবসময় সঠিক, কোনো sync-নির্ভরতা নেই। */
+function getPendingWithdrawTotal(){
+  return withdrawHistoryCache.filter(w=>w.status!=='confirmed').reduce((s,w)=>s+Number(w.amount||0), 0);
+}
+function getConfirmedWithdrawTotal(){
+  return withdrawHistoryCache.filter(w=>w.status==='confirmed').reduce((s,w)=>s+Number(w.amount||0), 0);
+}
+/* আসলে উত্তোলনযোগ্য ব্যালেন্স = Admin-এর হিসাব করা Available Balance বিয়োগ যা ইতিমধ্যে Pending
+   অবস্থায় আছে (একই টাকা দিয়ে দুইবার Withdraw রিকোয়েস্ট পাঠানো ঠেকাতে) */
+function getWithdrawableBalance(){
+  return Math.max(0, Number(resellerBalanceCache.availableBalance||0) - getPendingWithdrawTotal());
+}
 function openWithdrawPanel(){
   withdrawSelectedMethod = null;
   document.querySelectorAll('#withdrawMethodOpts .method-opt').forEach(el=>el.classList.remove('active'));
   document.getElementById('withdrawAmount').value = '';
   document.getElementById('withdrawNumber').value = '';
-  document.getElementById('withdrawAvailableBalance').textContent = fmtTk(resellerBalanceCache.availableBalance||0);
+  document.getElementById('withdrawAvailableBalance').textContent = fmtTk(getWithdrawableBalance());
   showPanel('withdrawPanel');
 }
 document.getElementById('withdrawBack').addEventListener('click', ()=>showPanel('profilePanel'));
@@ -2014,27 +2054,41 @@ document.getElementById('withdrawNumber').addEventListener('input', (e)=>{
 });
 document.getElementById('submitWithdrawBtn').addEventListener('click', async ()=>{
   if(!currentUser) return;
+  const submitBtn = document.getElementById('submitWithdrawBtn');
+  if(submitBtn.disabled) return;
   const amount = Number(document.getElementById('withdrawAmount').value||0);
   const number = document.getElementById('withdrawNumber').value.trim();
   if(!withdrawSelectedMethod){ showToast('বিকাশ বা নগদ নির্বাচন করুন'); return; }
   if(!amount || amount < 500){ showToast('সর্বনিম্ন ৳500 টাকা উত্তোলন করা যাবে'); return; }
-  if(amount > Number(resellerBalanceCache.availableBalance||0)){ showToast('আপনার Available Balance-এ পর্যাপ্ত টাকা নেই'); return; }
+  /* Available Balance অন্তত ৳500 এর বেশি হলেই উইথড্র করা যাবে */
+  const availableNow = getWithdrawableBalance();
+  if(availableNow < 500){ showToast('উত্তোলনের জন্য আপনার Available Balance কমপক্ষে ৳500 হতে হবে'); return; }
+  if(amount > availableNow){ showToast('আপনার Available Balance-এ পর্যাপ্ত টাকা নেই'); return; }
   if(!/^[0-9]{11}$/.test(number)){ showToast('সঠিক ১১ ডিজিটের নাম্বার দিন'); return; }
+  submitBtn.disabled = true;
   try{
     const now = Date.now();
-    const ref = db.ref('withdrawRequests/'+currentUser.uid).push();
-    await ref.set({
+    /* Firebase Rules অনুযায়ী resellerBalances শুধুমাত্র Admin লিখতে পারে (নিরাপত্তার জন্য) —
+       তাই ক্লায়েন্ট এখন আর ওই পাথে কিছু লেখার চেষ্টা করে না (এটাই আগের বার "উইথড্র করা যায়নি"
+       এরর দেখানোর আসল কারণ ছিল — permission denied)। শুধু নিজের withdrawRequests/{uid}-এ
+       একটা নতুন রিকোয়েস্ট তৈরি করা হয়, যেটার জন্য অনুমতি লাগবে। Pending Withdraw স্ক্রিনে দেখানো
+       হয় এই রিকোয়েস্ট লিস্ট থেকে হিসাব করে (getPendingWithdrawTotal), তাই এটা সাথে সাথে দেখা যাবে। */
+    const newRef = db.ref('withdrawRequests/'+currentUser.uid).push();
+    await newRef.set({
       amount, method: withdrawSelectedMethod, number,
-      status:'processing',
+      status: 'processing',
       createdAt: firebase.database.ServerValue.TIMESTAMP,
       createdAtClient: now,
       deadline: now + 48*60*60*1000
     });
-    await db.ref('resellerBalances/'+currentUser.uid+'/availableBalance').transaction(v=>Number(v||0)-amount);
-    await db.ref('resellerBalances/'+currentUser.uid+'/pendingWithdraw').transaction(v=>Number(v||0)+amount);
     showToast('Withdraw রিকোয়েস্ট পাঠানো হয়েছে');
     showPanel('profilePanel');
-  }catch(e){ showToast('Withdraw রিকোয়েস্ট পাঠানো যায়নি'); }
+  }catch(e){
+    console.error('Withdraw error:', e);
+    showToast('Withdraw রিকোয়েস্ট পাঠানো যায়নি — আবার চেষ্টা করুন');
+  } finally {
+    submitBtn.disabled = false;
+  }
 });
 function listenWithdrawHistory(uid){
   db.ref('withdrawRequests/'+uid).on('value', snap=>{
@@ -2046,17 +2100,11 @@ function listenWithdrawHistory(uid){
   });
 }
 /* যখন এডমিন Withdraw স্ট্যাটাস 'confirmed' করবে, Pending Withdraw থেকে সরিয়ে Total Withdraw-এ যোগ হবে */
+/* এই ফাংশনটিও আর কোনো ব্যালেন্স-write করে না — Withdraw Confirm হলে Pending→Total
+   Withdraw সরানোর কাজ এখন শুধু Admin Panel-এর Confirm বাটন থেকেই হয় (একই কারণে,
+   ডাবল-ফায়ার এড়াতে)। */
 async function processWithdrawSideEffects(uid){
-  for(const w of withdrawHistoryCache){
-    if(w.status==='confirmed' && !w.balanceFinalized){
-      const amt = Number(w.amount||0);
-      try{
-        await db.ref('resellerBalances/'+uid+'/pendingWithdraw').transaction(v=>Math.max(0,Number(v||0)-amt));
-        await db.ref('resellerBalances/'+uid+'/totalWithdraw').transaction(v=>Number(v||0)+amt);
-        await db.ref('withdrawRequests/'+uid+'/'+w.id+'/balanceFinalized').set(true);
-      }catch(e){}
-    }
-  }
+  return;
 }
 function openWithdrawHistory(){
   renderWithdrawHistory();
@@ -2127,7 +2175,6 @@ function renderPaymentSummary(){
     body.innerHTML = `<div style="padding:16px 14px;"><div class="info-card" style="text-align:center; color:var(--ink-soft); font-size:12.5px;">এখনও কোনো ডেলিভারি সম্পন্ন অর্ডার নেই</div></div>`;
     return;
   }
-  let totals = {productTotal:0, collected:0, shipping:0, profit:0, codCharge:0, payable:0};
   const trs = rows.map(o=>{
     const productTotal = Number(o.productTotal||0);
     const shipping = Number(o.deliveryCharge||0);
@@ -2135,8 +2182,6 @@ function renderPaymentSummary(){
     const profit = Number(o.totalProfit||0);
     const codCharge = Number(o.cashOutCharge||0);
     const payable = Math.max(0, profit-codCharge);
-    totals.productTotal += productTotal; totals.collected += collected; totals.shipping += shipping;
-    totals.profit += profit; totals.codCharge += codCharge; totals.payable += payable;
     return `<tr>
       <td>${o.orderId||'-'}</td>
       <td>${(o.status==='delivered'||o.status==='completed')?'ডেলিভার্ড':'-'}</td>
@@ -2158,12 +2203,6 @@ function renderPaymentSummary(){
             <th>Collected Amount</th><th>Shipping Cost</th><th>Profit</th><th>COD Charge</th><th>Total Payable</th>
           </tr></thead>
           <tbody>${trs}</tbody>
-          <tfoot><tr>
-            <td>Total</td><td></td><td></td>
-            <td>${fmtTk(totals.productTotal)}</td><td>${fmtTk(totals.collected)}</td>
-            <td>${fmtTk(totals.shipping)}</td><td>${fmtTk(totals.profit)}</td>
-            <td>${fmtTk(totals.codCharge)}</td><td>${fmtTk(totals.payable)}</td>
-          </tr></tfoot>
         </table>
       </div>
     </div>
@@ -2255,6 +2294,10 @@ function openOrderDetailModal(orderId){
     cancelled:{cls:'order-status-cancelled', label:'বাতিল'}
   };
   const st = statusMap[o.status] || statusMap.pending;
+  const CANCEL_REASON_LABEL = {
+    reseller_fault: 'কাস্টমার প্রোডাক্টটি রিসিভ করেননি / রিটার্ন হয়েছে',
+    out_of_stock: 'প্রোডাক্টটি স্টকে না থাকায় বাতিল করা হয়েছে'
+  };
   const productsHtml = (o.items||[]).map(it=>`
     <div class="detail-product-row">
       <span>${it.name||''} ${it.color?`(${it.color})`:''} × ${it.qty}</span>
@@ -2270,6 +2313,7 @@ function openOrderDetailModal(orderId){
     <div class="edit-order-modal-box">
       <div class="edit-order-modal-title">Order #${o.orderId}</div>
       <span class="order-status-pill ${st.cls}" style="margin-bottom:12px; display:inline-block;">${st.label}</span>
+      ${o.status==='cancelled'?`<div class="detail-row" style="background:#FDEAEA; border-radius:8px; padding:8px 10px; margin-bottom:10px;"><span class="lbl">বাতিলের কারণ</span><span class="val">${CANCEL_REASON_LABEL[o.cancelReason]||'উল্লেখ করা হয়নি'}</span></div>`:''}
 
       <div class="detail-sub-heading">Customer Details</div>
       <div class="detail-row"><span class="lbl">নাম</span><span class="val">${o.name||'-'}</span></div>
@@ -2451,7 +2495,7 @@ function profileViewHtml(){
     <div class="profile-hero-v2">
       <div class="profile-avatar-lg">${(p.name||currentUser.email||'?').trim().charAt(0).toUpperCase()}</div>
       <div class="profile-hero-account">Account <span class="hash">#${p.accountId||'-'}</span></div>
-      ${isReseller?`<div class="profile-hero-shop">?🛍️ ${p.shopName||'আপনার দোকান'}</div>`:''}
+      ${isReseller?`<div class="profile-hero-shop">🏪 ${p.shopName||'আপনার দোকান'}</div>`:''}
     </div>
 
     <div class="info-card">
@@ -2459,21 +2503,21 @@ function profileViewHtml(){
       <div class="info-row"><span class="info-row-label">নাম</span><span class="info-row-value">${p.name||'-'}</span></div>
       <div class="info-row"><span class="info-row-label">মোবাইল নাম্বার</span><span class="info-row-value">${p.phone||'-'}</span></div>
       <div class="info-row"><span class="info-row-label">ইমেইল</span><span class="info-row-value">${p.email||currentUser.email||'-'}</span></div>
-      <div class="info-row"><span class="info-row-label">Reseller</span><span class="info-row-value">${isReseller?'হ্যাঁ':'না'}</span></div>
+      ${isReseller?`<div class="info-row"><span class="info-row-label">Reseller</span><span class="info-row-value">হ্যাঁ</span></div>`:''}
     </div>
 
     <div class="ord-ov-grid" style="grid-template-columns:repeat(${isReseller?4:2},1fr);">
       <div class="ord-ov-card c-total" data-open-orders="1" style="cursor:pointer;">
-        <div class="ord-ov-num">${orderCount}</div>
+        <div class="ord-ov-num">📦</div>
         <div class="ord-ov-label">Orders</div>
       </div>
       ${isReseller?`
       <div class="ord-ov-card c-pending" data-open-withdraw="1" style="cursor:pointer;">
-        <div class="ord-ov-num">৳</div>
+        <div class="ord-ov-num">💰</div>
         <div class="ord-ov-label">Withdraw</div>
       </div>
       <div class="ord-ov-card c-completed" data-open-withdraw-history="1" style="cursor:pointer;">
-        <div class="ord-ov-num">${withdrawHistoryCache.length}</div>
+        <div class="ord-ov-num">🧾</div>
         <div class="ord-ov-label">Withdraw History</div>
       </div>`:''}
       <div class="ord-ov-card c-cancelled" data-open-manage="1" style="cursor:pointer;">
@@ -2509,10 +2553,10 @@ function resellerDashboardHtml(p){
         <div class="fin-progress-bottom"><span>${fmtTk(totalEarnings)}</span><span>Target ${fmtTk(target)}</span></div>
       </div>
       <div class="balance-grid">
-        <div class="balance-card primary"><div class="balance-label">Available Balance</div><div class="balance-value">${fmtTk(bal.availableBalance)}</div></div>
+        <div class="balance-card primary"><div class="balance-label">Available Balance</div><div class="balance-value">${fmtTk(getWithdrawableBalance())}</div></div>
         <div class="balance-card"><div class="balance-label">Total Earnings</div><div class="balance-value">${fmtTk(totalEarnings)}</div></div>
-        <div class="balance-card"><div class="balance-label">Pending Withdraw</div><div class="balance-value">${fmtTk(bal.pendingWithdraw)}</div></div>
-        <div class="balance-card"><div class="balance-label">Total Withdraw</div><div class="balance-value">${fmtTk(bal.totalWithdraw)}</div></div>
+        <div class="balance-card"><div class="balance-label">Pending Withdraw</div><div class="balance-value">${fmtTk(getPendingWithdrawTotal())}</div></div>
+        <div class="balance-card"><div class="balance-label">Total Withdraw</div><div class="balance-value">${fmtTk(getConfirmedWithdrawTotal())}</div></div>
       </div>
     </div>
 
@@ -2549,6 +2593,11 @@ document.getElementById('resellerOrdersBack').addEventListener('click', ()=>show
 
 /* INITIALIZATION */
 window.addEventListener('DOMContentLoaded', ()=>{
+  /* দ্রুত লোডের জন্য: আগের ভিজিটের ক্যাশ করা প্রোডাক্ট/ক্যাটাগরি থাকলে ইন্টারনেট
+     রেসপন্সের অপেক্ষা না করেই সঙ্গে সঙ্গে দেখানো হচ্ছে — Firebase থেকে নতুন ডেটা
+     এলে এটা ব্যাকগ্রাউন্ডে আপডেট হয়ে যাবে। */
+  if(Object.keys(allProducts).length){ productsLoaded = true; renderProducts(); }
+  if(Object.keys(allCategories).length){ renderCategories(); }
   initFastFirebase();
   populateDistricts();
   updateBadges();
@@ -2558,4 +2607,4 @@ window.addEventListener('DOMContentLoaded', ()=>{
 });
 </script>
 </body>
-  </html>
+</html>

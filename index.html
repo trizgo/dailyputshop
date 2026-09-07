@@ -1925,11 +1925,14 @@ async function processResellerOrderSideEffects(uid){
 }
 
 async function handleRegister(){
+  const btn = document.getElementById('regSubmitBtn');
+  if(btn && btn.disabled) return; // ডাবল-ক্লিকে দুইবার সাবমিট হওয়া ঠেকানোর জন্য
   const name = document.getElementById('regName').value.trim();
   const email = document.getElementById('regEmail').value.trim();
   const pass = document.getElementById('regPassword').value;
   if(!name||!email||!pass){ showToast('সব তথ্য পূরণ করুন'); return; }
   if(pass.length<6){ showToast('পাসওয়ার্ড কমপক্ষে ৬ ডিজিট হতে হবে'); return; }
+  if(btn) btn.disabled = true;
   try{
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     await cred.user.updateProfile({displayName:name});
@@ -1944,20 +1947,28 @@ async function handleRegister(){
     renderProfilePanel();
   }catch(e){
     showToast(authErrorMsg(e));
+  } finally {
+    if(btn) btn.disabled = false;
   }
 }
 async function handleLogin(){
+  const btn = document.getElementById('loginSubmitBtn');
+  if(btn && btn.disabled) return;
   const email = document.getElementById('loginEmail').value.trim();
   const pass = document.getElementById('loginPassword').value;
   if(!email||!pass){ showToast('ইমেইল ও পাসওয়ার্ড দিন'); return; }
+  if(btn) btn.disabled = true;
   try{
     await auth.signInWithEmailAndPassword(email, pass);
     showToast('লগইন সফল হয়েছে');
   }catch(e){
     showToast(authErrorMsg(e));
+  } finally {
+    if(btn) btn.disabled = false;
   }
 }
 async function handleLogout(){
+  stopAutoVerifyCheck();
   await auth.signOut();
   authView = 'login';
   showToast('লগআউট হয়েছে');
@@ -1973,8 +1984,41 @@ async function handleCheckVerified(){
   if(currentUser){
     await currentUser.reload();
     currentUser = auth.currentUser;
-    if(currentUser.emailVerified){ showToast('ইমেইল ভেরিফাই হয়েছে'); renderProfilePanel(); }
+    if(currentUser.emailVerified){ showToast('ইমেইল ভেরিফাই হয়েছে'); stopAutoVerifyCheck(); renderProfilePanel(); }
     else showToast('এখনও ভেরিফাই হয়নি, ইমেইল চেক করুন');
+  }
+}
+/* ইমেইল ভেরিফাই করার পর ম্যানুয়ালি "আমি ভেরিফাই করেছি" বাটনে চাপার দরকার যাতে না পড়ে —
+   Verify পেজ খোলা থাকা অবস্থায় (ক) ট্যাব আবার ফোকাস পেলে (Gmail থেকে ফিরে আসার সাথে সাথে —
+   এটাই সবচেয়ে দ্রুত পথ) এবং (খ) প্রতি ৩ সেকেন্ড পরপর ব্যাকআপ হিসেবে — স্বয়ংক্রিয়ভাবে
+   ভেরিফাই-স্ট্যাটাস চেক করে সাথে সাথে প্রোফাইলে নিয়ে যাওয়া হয়। */
+let autoVerifyInterval = null;
+let autoVerifyVisibilityHandler = null;
+async function silentCheckVerified(){
+  if(!currentUser || currentUser.emailVerified) return;
+  try{
+    await currentUser.reload();
+    currentUser = auth.currentUser;
+    if(currentUser && currentUser.emailVerified){
+      stopAutoVerifyCheck();
+      showToast('ইমেইল ভেরিফাই হয়েছে');
+      renderProfilePanel();
+    }
+  }catch(e){}
+}
+function startAutoVerifyCheck(){
+  stopAutoVerifyCheck();
+  autoVerifyInterval = setInterval(silentCheckVerified, 3000);
+  autoVerifyVisibilityHandler = ()=>{ if(document.visibilityState === 'visible') silentCheckVerified(); };
+  document.addEventListener('visibilitychange', autoVerifyVisibilityHandler);
+  window.addEventListener('focus', autoVerifyVisibilityHandler);
+}
+function stopAutoVerifyCheck(){
+  if(autoVerifyInterval){ clearInterval(autoVerifyInterval); autoVerifyInterval = null; }
+  if(autoVerifyVisibilityHandler){
+    document.removeEventListener('visibilitychange', autoVerifyVisibilityHandler);
+    window.removeEventListener('focus', autoVerifyVisibilityHandler);
+    autoVerifyVisibilityHandler = null;
   }
 }
 async function saveProfileField(field, value){
@@ -2360,8 +2404,10 @@ function renderProfilePanel(){
     document.getElementById('resendVerifyBtn').onclick = handleResendVerify;
     document.getElementById('checkVerifyBtn').onclick = handleCheckVerified;
     document.getElementById('verifyLogoutBtn').onclick = handleLogout;
+    startAutoVerifyCheck();
     return;
   }
+  stopAutoVerifyCheck();
   title.textContent = 'MY ACCOUNT';
   body.innerHTML = profileViewHtml();
   bindProfileViewEvents();

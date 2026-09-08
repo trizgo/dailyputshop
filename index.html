@@ -208,6 +208,13 @@ button{font-family:inherit; cursor:pointer; border:none; background:none;}
 .qty-btn{width:26px; height:26px; border-radius:7px; background:var(--paper-soft); display:flex; align-items:center; justify-content:center; font-weight:700;}
 .remove-link{color:var(--danger); font-size:11.5px; font-weight:600; margin-left:auto;}
 .cart-summary{padding:14px; border-top:1px solid var(--line); background:var(--paper);}
+.order-agree-box{margin-top:14px; background:var(--paper-soft); border:1px solid var(--line); border-radius:var(--radius); padding:12px;}
+.order-agree-row{display:flex; align-items:flex-start; gap:10px; cursor:pointer;}
+.order-agree-row input{position:absolute; opacity:0; width:1px; height:1px;}
+.order-agree-circle{width:22px; height:22px; border-radius:50%; border:2px solid var(--line); flex-shrink:0; margin-top:1px; position:relative; background:var(--paper); transition:.15s;}
+.order-agree-row input:checked ~ .order-agree-circle{background:var(--orange); border-color:var(--orange);}
+.order-agree-row input:checked ~ .order-agree-circle::after{content:''; position:absolute; left:7px; top:3px; width:5px; height:9px; border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg);}
+.order-agree-text{font-size:12px; color:var(--ink-soft); line-height:1.5;}
 .sum-row{display:flex; justify-content:space-between; font-size:13px; padding:4px 0; color:var(--ink-soft);}
 .sum-row.total{font-weight:700; font-size:15px; color:var(--ink); border-top:1px solid var(--line); margin-top:6px; padding-top:10px;}
 .fav-grid{padding:14px; display:grid; grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); gap:10px; align-content:start; align-items:start; flex:1;}
@@ -251,6 +258,19 @@ footer{background:var(--ink); color:#fff; padding:24px 14px 20px; text-align:cen
   .site-footer-wrap .social-grid{margin:16px 0 0; max-width:360px;}
   .site-footer-wrap footer{text-align:left; padding:36px 40px 28px; border-top:none;}
   .site-footer-wrap .footer-line{grid-column:1/-1; text-align:center; margin-top:0;}
+}
+
+/* ===== Desktop/Wide Screen-এ Product Details পেজের নাম ও Social/Contact অংশ ===== */
+/* এই সাইজগুলো শুধু .pdp-এর ভেতরের জন্য — Home/Favorites পেজের একই ক্লাসগুলো অপরিবর্তিত থাকবে। */
+@media (min-width:900px){
+  .pdp .pdp-name{font-size:16px;}
+  .pdp .contact-title{font-size:15px;}
+  .pdp .contact-about{font-size:12px;}
+  .pdp .social-icon{width:34px; height:34px; border-radius:10px;}
+  .pdp .social-icon svg{width:16px; height:16px;}
+  .pdp .social-label{font-size:8.5px;}
+  .pdp .footer-contact-title{font-size:13px;}
+  .pdp .footer-contact-line{font-size:12px;}
 }
 
 /* ===== Bottom Nav ===== */
@@ -671,6 +691,13 @@ footer{background:var(--ink); color:#fff; padding:24px 14px 20px; text-align:cen
       <div class="sum-row"><span>Product Total</span><span id="ordSumProduct">৳0</span></div>
       <div class="sum-row"><span>Delivery Charge</span><span id="ordSumDelivery">-</span></div>
       <div class="sum-row total"><span>Grand Total</span><span id="ordSumGrand">৳0</span></div>
+    </div>
+    <div class="order-agree-box hidden" id="orderAgreeBox">
+      <label class="order-agree-row">
+        <input type="checkbox" id="orderAgreeCheck">
+        <span class="order-agree-circle"></span>
+        <span class="order-agree-text">I confirm the customer information I'm entering is correct, and I agree to the Terms &amp; Conditions.</span>
+      </label>
     </div>
     <button class="btn btn-solid" style="width:100%; margin-top:14px; padding:15px;" id="placeOrderBtn">অর্ডার নিশ্চিত করুন</button>
   </div>
@@ -1638,6 +1665,21 @@ function openOrderPanel(){
   }
   updateOrderSummary();
   renderOrderItems();
+  /* রিসেলার অর্ডার করার সময় "I agree" চেকবক্স টিক না দেওয়া পর্যন্ত অর্ডার বাটন নিষ্ক্রিয় থাকবে —
+     সাধারণ (নন-রিসেলার) ইউজারের জন্য এই বক্সটা দেখানো হয় না, বাটন সবসময়ের মতোই সক্রিয় থাকে। */
+  const agreeBox = document.getElementById('orderAgreeBox');
+  const agreeCheck = document.getElementById('orderAgreeCheck');
+  const placeBtn = document.getElementById('placeOrderBtn');
+  agreeCheck.checked = false;
+  if(resellerMode){
+    agreeBox.classList.remove('hidden');
+    placeBtn.classList.add('btn-disabled');
+    placeBtn.disabled = true;
+  } else {
+    agreeBox.classList.add('hidden');
+    placeBtn.classList.remove('btn-disabled');
+    placeBtn.disabled = false;
+  }
   showPanel('orderPanel');
 }
 function renderOrderItems(){
@@ -1682,7 +1724,18 @@ function renderOrderItems(){
 document.getElementById('ordPhone').addEventListener('input', (e)=>{
   e.target.value = e.target.value.replace(/[^0-9]/g,'').slice(0,11);
 });
+document.getElementById('orderAgreeCheck').addEventListener('change', (e)=>{
+  const placeBtn = document.getElementById('placeOrderBtn');
+  if(e.target.checked){ placeBtn.classList.remove('btn-disabled'); placeBtn.disabled = false; }
+  else { placeBtn.classList.add('btn-disabled'); placeBtn.disabled = true; }
+});
 document.getElementById('placeOrderBtn').addEventListener('click', async ()=>{
+  /* Reseller অর্ডারের ক্ষেত্রে "I agree" চেকবক্স টিক দেওয়া বাধ্যতামূলক — বাটন ডিসেবল থাকা
+     সত্ত্বেও কোনোভাবে ক্লিক ঘটে গেলেও এখানে আরেকবার নিশ্চিত করা হচ্ছে (defense-in-depth) */
+  if(isActiveReseller() && !document.getElementById('orderAgreeCheck').checked){
+    showToast('অর্ডার করার আগে নিচের বক্সে টিক দিন');
+    return;
+  }
   const name = document.getElementById('ordName').value.trim();
   const phone = document.getElementById('ordPhone').value.trim();
   const district = document.getElementById('ordDistrict').value.trim();

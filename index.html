@@ -346,6 +346,8 @@ footer{background:var(--ink); color:#fff; padding:24px 14px 20px; text-align:cen
 .logout-btn{width:100%; padding:12px; border-radius:10px; border:1.5px solid var(--danger); color:var(--danger); font-weight:600; font-size:13.5px; margin-top:6px;}
 .field-err{color:var(--danger); font-size:11.5px; margin-top:-8px; margin-bottom:10px; display:none;}
 .sell-price-box{background:var(--orange-light); border-radius:var(--radius); padding:12px; margin:14px 0;}
+.warranty-box{display:flex; align-items:center; gap:8px; background:var(--paper-soft); border:1px solid var(--line); border-radius:var(--radius); padding:10px 12px; margin:12px 0; font-size:12.5px; font-weight:600; color:var(--ink-soft);}
+.warranty-box svg{width:18px; height:18px; color:var(--success,#1FA855); flex-shrink:0;}
 .sell-price-row{display:flex; align-items:center; gap:10px;}
 .sell-price-row input{flex:1; border:1.5px solid var(--line); border-radius:8px; padding:9px 10px; font-family:inherit; font-size:13.5px;}
 .sell-price-row input.invalid{border-color:var(--danger); background:#FDEAEA; color:var(--danger);}
@@ -848,13 +850,21 @@ function initFastFirebase(){
     checkDeepLinkProduct();
   }).catch(firebaseErrorState);
 
-  // Keep synced for live updates
+  /* Keep synced for live updates — আগে প্রতিটা ছোট পরিবর্তনেও (এমনকি একটা প্রোডাক্টের স্টক/দাম
+     আপডেট হলেও) পুরো গ্রিড সঙ্গে সঙ্গে re-render হতো, যার ফলে সব প্রোডাক্ট কার্ড ও ছবি একসাথে
+     রিলোড/ফ্লিকার করত ("ছবি শো করে না, তারপর করে, কিন্তু ডিস্টার্ব করে" — এই সমস্যাটার কারণ এটাই
+     ছিল)। এখন কয়েকটা আপডেট একসাথে এলে (৪০০ms-এর মধ্যে) একটা মাত্র re-render হবে, ফলে
+     ফ্লিকার অনেক কমে যাবে। */
+  let productsRenderDebounce = null;
   db.ref('products').on('value', snap => {
     allProducts = snap.val() || {};
     productsLoaded = true;
     localStorage.setItem(CACHE_KEY_PRODS, JSON.stringify(allProducts));
-    renderProducts();
-    renderPdpIfOpen();
+    if(productsRenderDebounce) clearTimeout(productsRenderDebounce);
+    productsRenderDebounce = setTimeout(()=>{
+      renderProducts();
+      renderPdpIfOpen();
+    }, 400);
   });
 
   db.ref('siteContent').on('value', snap => {
@@ -984,6 +994,32 @@ function getPublishedProducts(){
     .map(([id,p])=>({id,...p}))
     .filter(p=>p.status === 'published')
     .sort((a,b)=>(a.order!=null?Number(a.order):999999)-(b.order!=null?Number(b.order):999999));
+}
+/* একটা তালিকা থেকে প্রতিটা ক্যাটাগরি থেকে পালাক্রমে প্রোডাক্ট বেছে নেয় (round-robin), যাতে
+   কোনো এক ক্যাটাগরি পুরো লিস্ট দখল না করে ফেলে — "Just For You"-তে ব্যবহৃত হয়। */
+function pickDiverseByCategory(products, limit){
+  const byCat = {};
+  const order = [];
+  products.forEach(p=>{
+    const key = p.categoryId || '_none';
+    if(!byCat[key]){ byCat[key] = []; order.push(key); }
+    byCat[key].push(p);
+  });
+  const result = [];
+  let round = 0;
+  while(result.length < limit){
+    let addedAny = false;
+    for(const key of order){
+      if(byCat[key][round]){
+        result.push(byCat[key][round]);
+        addedAny = true;
+        if(result.length >= limit) break;
+      }
+    }
+    if(!addedAny) break;
+    round++;
+  }
+  return result;
 }
 function renderProducts(){
   const grid = document.getElementById('prodGrid');
@@ -1203,7 +1239,10 @@ function renderPdpIfOpen(){
   const outOfStock = isOutOfStock(p);
 
   const relatedSameCat = getPublishedProducts().filter(x=>x.categoryId===p.categoryId && x.id!==currentProductId);
-  const otherCatProducts = getPublishedProducts().filter(x=>x.categoryId!==p.categoryId);
+  /* "Just For You" এখন প্রতিটা ক্যাটাগরি থেকে পালাক্রমে (round-robin) প্রোডাক্ট নেয়, যাতে
+     কোনো একটা ক্যাটাগরির প্রোডাক্টই পুরো লিস্ট দখল করে না রাখে — প্রতিটা ক্যাটাগরিরই প্রোডাক্ট
+     দেখা যায়, এবং মোট ৩০টা পর্যন্ত দেখানো হয় (আগে ছিল ১০টা)। */
+  const otherCatProducts = pickDiverseByCategory(getPublishedProducts().filter(x=>x.categoryId!==p.categoryId), 30);
 
   /* নতুন মেসেজ ফরম্যাট তৈরি */
   const productUrl = window.location.origin + window.location.pathname + `?product=${p.id}${p.code ? '&code='+encodeURIComponent(p.code) : ''}`;
@@ -1260,6 +1299,12 @@ function renderPdpIfOpen(){
         ${colors.map(c=>`<div class="color-dot ${currentColorSelection[currentProductId]===c?'active':''}" style="background:${colorHex(c)}" data-color="${c}" title="${c}"></div>`).join('')}
       </div>`:''}
 
+      ${p.warranty?`
+      <div class="warranty-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+        <span>${p.warranty}</span>
+      </div>`:''}
+
       <div class="pdp-section-label">পরিমাণ (Quantity)</div>
       <div class="pdp-qty-picker">
         <button class="pdp-qty-btn" id="pdpQtyDec">−</button>
@@ -1289,7 +1334,7 @@ function renderPdpIfOpen(){
       ${otherCatProducts.length?`
       <div class="pdp-section-label" style="margin-top:24px; text-align:center; color:var(--ink-soft); font-weight:700;">Just For You</div>
       <div class="prod-grid" id="otherCatGrid">
-        ${otherCatProducts.slice(0, 10).map(productCardHtml).join('')}
+        ${otherCatProducts.map(productCardHtml).join('')}
       </div>`:''}
 
       <div class="site-footer-wrap" style="margin:24px -14px 0;">
@@ -1416,7 +1461,19 @@ function renderPdpIfOpen(){
   };
 }
 function colorHex(name){
-  const map = {Black:'#1a1a1a',White:'#fff',Red:'#e23b3b',Blue:'#2f6fed',Green:'#1e9e6c',Orange:'#ff6a1a',Yellow:'#f5c518',Pink:'#f472b6',Purple:'#8b5cf6',Grey:'#9ca3af',Silver:'#c7c9cc',Gold:'#d4af37',Brown:'#8b5a2b'};
+  /* এডমিন প্যানেলের COLOR_PALETTE-এর সাথে হুবহু মিলিয়ে রাখা — এডমিন যে ৩০টা রঙের যেকোনোটা
+     সিলেক্ট করুক না কেন, ওয়েবসাইটে সেটার আসল রংটাই দেখাবে (আগে শুধু ১৩টা পুরনো রং এখানে ছিল,
+     বাকিগুলো ধূসর/#ccc হয়ে যেত — এটাই "অনেক রং ঠিকমতো দেখা যাচ্ছে না" সমস্যার কারণ ছিল)। */
+  const map = {
+    Black:'#1a1a1a', White:'#ffffff', Red:'#e23b3b', Maroon:'#7a1f2b',
+    Blue:'#2f6fed', 'Navy Blue':'#1c2f5e', 'Sky Blue':'#7ec6f0', Green:'#1e9e6c',
+    Olive:'#6b6b1f', Orange:'#ff6a1a', Yellow:'#f5c518', Pink:'#f472b6',
+    'Hot Pink':'#e0399b', Purple:'#8b5cf6', Grey:'#9ca3af', Silver:'#c7c9cc',
+    Gold:'#d4af37', Brown:'#8b5a2b', Beige:'#e8dcc4', Cream:'#f3ecd8',
+    'Sea Green':'#2e8b7a', Turquoise:'#30c9c9', Wine:'#5e1a33', Peach:'#f7c9a3',
+    Lavender:'#c7b6f0', Mustard:'#d9a51c', Coral:'#f0704f', Mint:'#a6e8c8',
+    Sky:'#a8d8ff', Charcoal:'#3a3a3d'
+  };
   return map[name] || '#ccc';
 }
 function openZoom(src){
@@ -2563,6 +2620,9 @@ function orderMiniHtml(o, allowEdit){
   };
   const st = statusMap[o.status] || statusMap.pending;
   const canEdit = allowEdit && o.status==='pending';
+  /* ডেলিভারি হয়ে যাওয়ার পর, অর্ডারের কোনো আইটেমের Warranty থাকলে (এডমিন প্যানেল থেকে সেট করা)
+     রিটার্ন/চেঞ্জ অপশন দেখানো হবে — অলরেডি রিটার্ন রিকোয়েস্ট করা থাকলে সেটার স্ট্যাটাস দেখাবে। */
+  const hasWarrantyItem = o.status==='delivered' && (o.items||[]).some(it=> allProducts[it.productId] && allProducts[it.productId].warranty);
   return `
     <div class="order-mini" data-order-id="${o.orderId}">
       <div class="order-mini-top">
@@ -2573,6 +2633,7 @@ function orderMiniHtml(o, allowEdit){
       <div class="order-mini-actions">
         ${o.trackingLink?`<a href="${o.trackingLink}" target="_blank" class="mini-link">Order Tracking করুন →</a>`:''}
         ${canEdit?`<button class="mini-link" data-edit-order="${o.orderId}">এডিট করুন</button>`:''}
+        ${hasWarrantyItem?(o.returnRequested?`<span class="mini-link" style="color:var(--ink-soft);">রিটার্ন/চেঞ্জ রিকোয়েস্ট পাঠানো হয়েছে</span>`:`<button class="mini-link" data-return-order="${o.orderId}">রিটার্ন / চেঞ্জ করুন</button>`):''}
       </div>
     </div>
   `;
@@ -2581,12 +2642,32 @@ function bindOrderMiniActions(container){
   container.querySelectorAll('[data-edit-order]').forEach(btn=>{
     btn.addEventListener('click', (e)=>{ e.stopPropagation(); openOrderEditModal(btn.getAttribute('data-edit-order')); });
   });
+  container.querySelectorAll('[data-return-order]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{ e.stopPropagation(); handleReturnRequest(btn.getAttribute('data-return-order')); });
+  });
   container.querySelectorAll('.order-mini').forEach(el=>{
     el.addEventListener('click', ()=>openOrderDetailModal(el.getAttribute('data-order-id')));
   });
   container.querySelectorAll('.order-mini a, .order-mini .mini-link').forEach(el=>{
     el.addEventListener('click', (e)=>e.stopPropagation());
   });
+}
+/* Warranty থাকা প্রোডাক্টের ডেলিভার্ড অর্ডারে Return/Change রিকোয়েস্ট — অর্ডারেই ফ্ল্যাগ হিসেবে
+   সংরক্ষণ হয়, যাতে এডমিন প্যানেলে (Order Details-এ) এটা দেখা যায়। */
+async function handleReturnRequest(orderId){
+  const reason = prompt('রিটার্ন/চেঞ্জ করার কারণ লিখুন (ঐচ্ছিক):', '');
+  if(reason===null) return;
+  try{
+    await db.ref('orders/'+orderId).update({
+      returnRequested: true,
+      returnReason: reason.trim(),
+      returnRequestedAt: firebase.database.ServerValue.TIMESTAMP
+    });
+    showToast('রিটার্ন/চেঞ্জ রিকোয়েস্ট পাঠানো হয়েছে');
+    openOrdersListPanel();
+  }catch(e){
+    showToast('রিকোয়েস্ট পাঠানো যায়নি, আবার চেষ্টা করুন');
+  }
 }
 function profileViewHtml(){
   const p = currentUserProfile || {};

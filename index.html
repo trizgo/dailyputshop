@@ -17,6 +17,10 @@
 <meta name="twitter:description" content="আপনার বিশ্বস্ত অনলাইন গ্যাজেট ও লাইফস্টাইল শপ। সারা বাংলাদেশে দ্রুত ডেলিভারি।">
 <meta name="twitter:image" content="https://i.postimg.cc/y8WvgB7K/IMG-20260828-082152.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://daily-put-shop-default-rtdb.firebaseio.com" crossorigin>
+<link rel="preconnect" href="https://i.postimg.cc" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -168,6 +172,9 @@ button{font-family:inherit; cursor:pointer; border:none; background:none;}
 .pdp-section-label{font-weight:600; font-size:13px; margin:16px 0 8px; color:var(--ink);}
 .color-opts{display:flex; gap:8px; flex-wrap:wrap;}
 .color-dot{width:34px; height:34px; border-radius:50%; border:2px solid var(--line); cursor:pointer; position:relative;}
+.size-opts{display:flex; gap:8px; flex-wrap:wrap;}
+.size-chip{padding:8px 14px; border:2px solid var(--line); border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; background:var(--paper); color:var(--ink);}
+.size-chip.active{border-color:var(--orange); background:var(--orange-light); color:var(--orange-dark);}
 .color-dot.active{border-color:var(--orange); box-shadow:0 0 0 2px var(--orange-light);}
 .desc-box{background:var(--paper-soft); border-radius:var(--radius); padding:14px; font-size:13.5px; line-height:1.6; color:var(--ink-soft); max-height:90px; overflow:hidden; position:relative; cursor:pointer;}
 .desc-box.expanded{max-height:none;}
@@ -712,7 +719,6 @@ footer{background:var(--ink); color:#fff; padding:24px 14px 20px; text-align:cen
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script>
 /* ===================== FIREBASE CONFIG ===================== */
@@ -775,6 +781,8 @@ let cart = JSON.parse(localStorage.getItem('dps_cart') || '{}');
 let favorites = JSON.parse(localStorage.getItem('dps_favorites') || '[]');
 let currentProductId = null;
 let currentColorSelection = {};
+let currentSizeSelection = {};
+function safeCacheSet(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){} }
 /* রিসেলার প্রোডাক্ট ডিটেলসে যে Sell Price বসান, তা এখানে ধরে রাখা হয় — যাতে রং সিলেক্ট করার
    সময় PDP রি-রেন্ডার হলেও (renderPdpIfOpen) আগে বসানো Sell Price হারিয়ে না যায়/Reseller Price-এ
    ফিরে না যায়। */
@@ -829,43 +837,51 @@ function initFastFirebase(){
   // Banners
   db.ref('banners').on('value', snap => {
     allBanners = snap.val() || {};
-    localStorage.setItem(CACHE_KEY_BANNERS, JSON.stringify(allBanners));
+    safeCacheSet(CACHE_KEY_BANNERS, allBanners);
     renderBanners();
   });
 
   // Categories
   db.ref('categories').on('value', snap => {
     allCategories = snap.val() || {};
-    localStorage.setItem(CACHE_KEY_CATS, JSON.stringify(allCategories));
+    safeCacheSet(CACHE_KEY_CATS, allCategories);
     renderCategories();
   });
 
-  // Products (Fast Fetch via once + realtime listener)
-  db.ref('products').once('value').then(snap => {
-    allProducts = snap.val() || {};
-    productsLoaded = true;
-    localStorage.setItem(CACHE_KEY_PRODS, JSON.stringify(allProducts));
-    renderProducts();
-    renderPdpIfOpen();
-    checkDeepLinkProduct();
-  }).catch(firebaseErrorState);
-
-  /* Keep synced for live updates — আগে প্রতিটা ছোট পরিবর্তনেও (এমনকি একটা প্রোডাক্টের স্টক/দাম
-     আপডেট হলেও) পুরো গ্রিড সঙ্গে সঙ্গে re-render হতো, যার ফলে সব প্রোডাক্ট কার্ড ও ছবি একসাথে
-     রিলোড/ফ্লিকার করত ("ছবি শো করে না, তারপর করে, কিন্তু ডিস্টার্ব করে" — এই সমস্যাটার কারণ এটাই
-     ছিল)। এখন কয়েকটা আপডেট একসাথে এলে (৪০০ms-এর মধ্যে) একটা মাত্র re-render হবে, ফলে
-     ফ্লিকার অনেক কমে যাবে। */
+  /* Products — দ্রুত লোডের জন্য:
+     ১) নতুন ভিজিটর (ক্যাশ নেই) হলে আগে শুধু প্রথম ৪০টা প্রোডাক্ট এনে সঙ্গে সঙ্গে দেখানো হয়
+     ২) একই সময়ে একটাই realtime listener পুরো তালিকা আনে (আগে once + on দুইবার আলাদা করে প্রসেস হতো)
+     ৩) প্রথমবার সম্পূর্ণ ডেটা এলে সঙ্গে সঙ্গে দেখায়, পরের লাইভ আপডেটগুলো ডিবাউন্স করে */
+  let fullProductsLoaded = false;
   let productsRenderDebounce = null;
+  if(!Object.keys(allProducts).length){
+    db.ref('products').orderByChild('order').limitToFirst(40).once('value').then(snap => {
+      if(fullProductsLoaded) return;
+      const part = snap.val();
+      if(!part) return;
+      allProducts = part;
+      productsLoaded = true;
+      renderProducts();
+    }).catch(()=>{});
+  }
   db.ref('products').on('value', snap => {
     allProducts = snap.val() || {};
     productsLoaded = true;
-    localStorage.setItem(CACHE_KEY_PRODS, JSON.stringify(allProducts));
+    if(!fullProductsLoaded){
+      fullProductsLoaded = true;
+      renderProducts();
+      renderPdpIfOpen();
+      checkDeepLinkProduct();
+      setTimeout(()=>safeCacheSet(CACHE_KEY_PRODS, allProducts), 0);
+      return;
+    }
+    setTimeout(()=>safeCacheSet(CACHE_KEY_PRODS, allProducts), 0);
     if(productsRenderDebounce) clearTimeout(productsRenderDebounce);
     productsRenderDebounce = setTimeout(()=>{
       renderProducts();
       renderPdpIfOpen();
     }, 400);
-  });
+  }, firebaseErrorState);
 
   db.ref('siteContent').on('value', snap => {
     const c = snap.val();
@@ -1029,7 +1045,8 @@ function renderProducts(){
     list = list
       .map(p=>({...p, ...computeDiscount(p)}))
       .filter(p=>p.pct>0)
-      .sort((a,b)=>b.pct-a.pct);
+      .sort((a,b)=>b.pct-a.pct)
+      .slice(0, 50); /* শুধু সবচেয়ে বেশি ছাড়ের ৫০টা প্রোডাক্ট দেখাবে */
     titleEl.innerHTML = `সেরা ছাড়`;
   } else if(selectedCategory && allCategories[selectedCategory]){
     list = list.filter(p=>p.categoryId===selectedCategory);
@@ -1048,7 +1065,7 @@ function renderProducts(){
   const totalCount = list.length;
   const visibleList = list.slice(0, prodDisplayCount);
   const hasMore = totalCount > visibleList.length;
-  grid.innerHTML = visibleList.map(productCardHtml).join('')
+  grid.innerHTML = visibleList.map((p,i)=>productCardHtml(p,i)).join('')
     + (hasMore ? `<div class="load-more-sentinel" id="loadMoreSentinel"><div class="load-spinner"></div></div>` : '');
   bindProductCardEvents(grid);
   setupLoadMoreObserver(hasMore);
@@ -1088,7 +1105,7 @@ function itemUnitPrice(item, p){
   }
   return disc;
 }
-function productCardHtml(p){
+function productCardHtml(p, idx){
   const {orig,disc,pct} = computeDiscount(p);
   const img = (p.images && p.images[0]) || p.imageUrl || '';
   const isFav = favorites.includes(p.id);
@@ -1099,7 +1116,7 @@ function productCardHtml(p){
       <button class="fav-btn ${isFav?'active':''}" data-fav-toggle="${p.id}">
         <svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
       </button>
-      ${img?`<img src="${img}" loading="lazy" alt="${p.name}">`:''}
+      ${img?`<img src="${img}" ${(idx!==undefined && idx<6)?'loading="eager" fetchpriority="high"':'loading="lazy"'} decoding="async" alt="${p.name}">`:''}
     </div>
     <div class="prod-body">
       <div class="prod-name">${p.name||''}</div>
@@ -1235,6 +1252,9 @@ function renderPdpIfOpen(){
   const {orig,disc,pct} = computeDiscount(p);
   const images = (p.images && p.images.length) ? p.images : (p.imageUrl?[p.imageUrl]:[]);
   const colors = p.colors || [];
+  const sizes = p.sizes ? Object.values(p.sizes) : [];
+  const sizeLabel = 'অপশন';
+  const escSz = (v)=>String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   const isFav = favorites.includes(currentProductId);
   const outOfStock = isOutOfStock(p);
 
@@ -1297,6 +1317,18 @@ function renderPdpIfOpen(){
       <div class="pdp-section-label">রঙ নির্বাচন করুন</div>
       <div class="color-opts" id="colorOpts">
         ${colors.map(c=>`<div class="color-dot ${currentColorSelection[currentProductId]===c?'active':''}" style="background:${colorHex(c)}" data-color="${c}" title="${c}"></div>`).join('')}
+      </div>`:''}
+
+      ${sizes.length?`
+      <div class="pdp-section-label">${escSz(sizeLabel)} নির্বাচন করুন</div>
+      <div class="size-opts" id="sizeOpts">
+        ${sizes.map(sz=>`<div class="size-chip ${currentSizeSelection[currentProductId]===sz?'active':''}" data-size="${escSz(sz)}">${escSz(sz)}</div>`).join('')}
+      </div>`:''}
+
+      ${p.advanceNote?`
+      <div class="warranty-box" style="align-items:flex-start; background:var(--orange-light); color:var(--orange-dark); border-color:var(--orange);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--orange-dark);"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span style="white-space:pre-line;">${escSz(p.advanceNote)}</span>
       </div>`:''}
 
       ${p.warranty?`
@@ -1394,6 +1426,13 @@ function renderPdpIfOpen(){
     });
   });
 
+  document.querySelectorAll('#sizeOpts .size-chip').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      currentSizeSelection[currentProductId] = el.getAttribute('data-size');
+      renderPdpIfOpen();
+    });
+  });
+
   const relScroll = document.getElementById('relatedScroll');
   if(relScroll){
     relScroll.querySelectorAll('[data-prod-open]').forEach(el=>{
@@ -1444,18 +1483,20 @@ function renderPdpIfOpen(){
   addCartBtn.onclick = ()=>{
     if(outOfStock){ showToast('এই প্রোডাক্টটি বর্তমানে স্টকে নেই'); return; }
     if(colors.length && !currentColorSelection[currentProductId]){ showToast('অনুগ্রহ করে একটি রঙ নির্বাচন করুন'); return; }
+    if(sizes.length && !currentSizeSelection[currentProductId]){ showToast('অনুগ্রহ করে একটি '+sizeLabel+' নির্বাচন করুন'); return; }
     if(!isSellPriceValid()){ sellPriceInput.classList.add('invalid'); showToast('বিক্রয়মূল্য Reseller Price-এর কম দেওয়া যাবে না'); return; }
     let sellPrice = sellPriceInput ? Number(sellPriceInput.value||0) : undefined;
-    addToCart(currentProductId, currentColorSelection[currentProductId], pdpQuantity, sellPrice);
+    addToCart(currentProductId, currentColorSelection[currentProductId], pdpQuantity, sellPrice, currentSizeSelection[currentProductId]);
     showToast('কার্টে যোগ হয়েছে');
   };
 
   buyNowBtn.onclick = ()=>{
     if(outOfStock){ showToast('এই প্রোডাক্টটি বর্তমানে স্টকে নেই'); return; }
     if(colors.length && !currentColorSelection[currentProductId]){ showToast('অনুগ্রহ করে একটি রঙ নির্বাচন করুন'); return; }
+    if(sizes.length && !currentSizeSelection[currentProductId]){ showToast('অনুগ্রহ করে একটি '+sizeLabel+' নির্বাচন করুন'); return; }
     if(!isSellPriceValid()){ sellPriceInput.classList.add('invalid'); showToast('বিক্রয়মূল্য Reseller Price-এর কম দেওয়া যাবে না'); return; }
     let sellPrice = sellPriceInput ? Number(sellPriceInput.value||0) : undefined;
-    addToCart(currentProductId, currentColorSelection[currentProductId], pdpQuantity, sellPrice);
+    addToCart(currentProductId, currentColorSelection[currentProductId], pdpQuantity, sellPrice, currentSizeSelection[currentProductId]);
     closeProductDetails(true);
     openOrderPanel();
   };
@@ -1485,14 +1526,14 @@ function openZoom(src){
 }
 
 /* ===================== CART ===================== */
-function cartKey(prodId,color){ return prodId + '::' + (color||'none'); }
-function addToCart(prodId, color, qty, sellPrice){
-  const key = cartKey(prodId,color);
+function cartKey(prodId,color,size){ return prodId + '::' + (color||'none') + (size?'::'+size:''); }
+function addToCart(prodId, color, qty, sellPrice, size){
+  const key = cartKey(prodId,color,size);
   if(cart[key]){
     cart[key].qty += qty;
     if(sellPrice!==undefined && sellPrice!==null && !isNaN(sellPrice)) cart[key].sellPrice = sellPrice;
   } else {
-    cart[key] = {prodId, color: color||null, qty};
+    cart[key] = {prodId, color: color||null, size: size||null, qty};
     if(sellPrice!==undefined && sellPrice!==null && !isNaN(sellPrice)) cart[key].sellPrice = sellPrice;
   }
   saveCart();
@@ -1518,7 +1559,7 @@ function renderCart(){
       <img src="${img}">
       <div class="cart-item-info">
         <div class="cart-item-name">${p.name}</div>
-        <div class="cart-item-meta">${p.code}${item.color?' · '+item.color:''} · ${fmtTk(disc)}</div>
+        <div class="cart-item-meta">${p.code}${item.color?' · '+item.color:''}${item.size?' · '+item.size:''} · ${fmtTk(disc)}</div>
         <div class="qty-row">
           <button class="qty-btn" data-qty="-1" data-key="${key}">−</button>
           <span>${item.qty}</span>
@@ -1759,7 +1800,7 @@ function renderOrderItems(){
       <img src="${img}">
       <div class="cart-item-info">
         <div class="cart-item-name">${p.name}</div>
-        <div class="cart-item-meta">${p.code}${item.color?' · '+item.color:''} · ${fmtTk(disc)}</div>
+        <div class="cart-item-meta">${p.code}${item.color?' · '+item.color:''}${item.size?' · '+item.size:''} · ${fmtTk(disc)}</div>
         <div class="qty-row">
           <button class="qty-btn" data-ord-qty="-1" data-ord-key="${key}">−</button>
           <span>${item.qty}</span>
@@ -1803,9 +1844,22 @@ document.getElementById('placeOrderBtn').addEventListener('click', async ()=>{
   if(!name||!phone||!district||!thana||!address){ showToast('সব তথ্য পূরণ করুন'); return; }
   if(!/^[0-9]{11}$/.test(phone)){ showToast('সঠিক ১১ ডিজিটের মোবাইল নাম্বার দিন'); return; }
   if(!BD_LOCATIONS[district]){ showToast('তালিকা থেকে সঠিক জেলা নির্বাচন করুন'); return; }
+  /* ডাবল অর্ডার ঠেকানো: ক্লিক চলার সময় আর কোনো ক্লিক ধরা হবে না, আর একই কার্ট/নাম্বারের জন্য
+     একই Order ID ব্যবহার হবে — নেট স্লো থাকলে বারবার চাপলেও একটাই অর্ডার তৈরি হবে */
+  if(window._orderSubmitting) return;
+  window._orderSubmitting = true;
+  const _placeBtn = document.getElementById('placeOrderBtn');
+  const _placeBtnText = _placeBtn.textContent;
+  _placeBtn.disabled = true;
+  _placeBtn.classList.add('btn-disabled');
+  _placeBtn.textContent = 'অর্ডার হচ্ছে...';
   const total = cartProductTotal();
   const delivery = calcDelivery(district);
-  const orderId = 'DPS' + Date.now().toString().slice(-8);
+  const _orderSig = JSON.stringify(Object.values(cart).map(i=>[i.prodId,i.color||null,i.size||null,i.qty,i.sellPrice==null?null:i.sellPrice])) + '|' + phone;
+  if(!window._pendingOrder || window._pendingOrder.sig !== _orderSig){
+    window._pendingOrder = { sig:_orderSig, id:'DPS' + Date.now().toString().slice(-8) };
+  }
+  const orderId = window._pendingOrder.id;
   const resellerActive = isActiveReseller();
   let totalProfit = 0;
   const items = Object.values(cart).map(item=>{
@@ -1814,7 +1868,7 @@ document.getElementById('placeOrderBtn').addEventListener('click', async ()=>{
        ফিরে যাবে না। itemUnitPrice() ইতিমধ্যে Math.max(sellPrice, resellerPrice) দিয়ে এটা
        নিশ্চিত করে, এখানে আবার একই নিয়মে price রি-কনফার্ম করা হচ্ছে (ডাবল সেফটি)। */
     const price = itemUnitPrice(item, p||{});
-    const entry = { productId:item.prodId, name:p?p.name:'', code:p?p.code:'', color:item.color, qty:item.qty, price };
+    const entry = { productId:item.prodId, name:p?p.name:'', code:p?p.code:'', color:item.color, size:item.size||null, qty:item.qty, price };
     if(resellerActive && p && p.resellerPrice){
       const rp = Number(p.resellerPrice);
       const sp = Math.max(Number(item.sellPrice!=null ? item.sellPrice : rp), rp);
@@ -1853,6 +1907,7 @@ document.getElementById('placeOrderBtn').addEventListener('click', async ()=>{
         }
       }
     }
+    window._pendingOrder = null;
     cart = {}; saveCart();
     showToast('আপনার অর্ডার সফলভাবে সম্পন্ন হয়েছে!');
     closeAllPanels();
@@ -1861,6 +1916,12 @@ document.getElementById('placeOrderBtn').addEventListener('click', async ()=>{
     document.getElementById('ordAddress').value='';
   }catch(e){
     showToast('অর্ডার সম্পন্ন করা যায়নি, আবার চেষ্টা করুন');
+  }finally{
+    window._orderSubmitting = false;
+    _placeBtn.textContent = _placeBtnText;
+    const _needAgree = isActiveReseller() && !document.getElementById('orderAgreeCheck').checked;
+    _placeBtn.disabled = _needAgree;
+    _placeBtn.classList.toggle('btn-disabled', _needAgree);
   }
 });
 
@@ -2456,7 +2517,7 @@ function openOrderDetailModal(orderId){
   };
   const productsHtml = (o.items||[]).map(it=>`
     <div class="detail-product-row">
-      <span>${it.name||''} ${it.color?`(${it.color})`:''} × ${it.qty}</span>
+      <span>${it.name||''} ${it.color?`(${it.color})`:''}${it.size?` (${it.size})`:''} × ${it.qty}</span>
       <span>${fmtTk((it.price||0)*(it.qty||1))}</span>
     </div>
   `).join('') || '<div class="detail-product-row"><span>প্রোডাক্টের তথ্য নেই</span></div>';

@@ -78,6 +78,19 @@ button{font-family:inherit; cursor:pointer; border:none; background:none;}
 .banner-dots{display:flex; justify-content:center; gap:6px; margin-top:8px;}
 .banner-dots span{width:6px; height:6px; border-radius:50%; background:var(--line);}
 .banner-dots span.active{background:var(--orange); width:16px; border-radius:4px;}
+/* ===== Desktop-only slide arrows (মোবাইলে দেখাবে না) ===== */
+.dsk-arrow-host{position:relative;}
+.dsk-arrow{display:none;}
+@media (min-width:900px){
+  .dsk-arrow{display:flex; position:absolute; top:50%; transform:translateY(-50%); width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,.94); border:1px solid var(--line); box-shadow:0 2px 8px rgba(0,0,0,.2); align-items:center; justify-content:center; cursor:pointer; z-index:4; color:var(--ink); padding:0;}
+  .dsk-arrow:hover{background:var(--orange); border-color:var(--orange); color:#fff;}
+  .dsk-arrow-prev{left:10px;}
+  .dsk-arrow-next{right:10px;}
+  .dsk-arrow.dsk-arrow-sm{width:30px; height:30px;}
+  .dsk-arrow.dsk-arrow-sm.dsk-arrow-prev{left:4px;}
+  .dsk-arrow.dsk-arrow-sm.dsk-arrow-next{right:4px;}
+  .dsk-arrow.dsk-arrow-hidden{display:none;}
+}
 
 /* ===== Promo strip (আইকনগুলোকে বক্সের সামনে রেখে লেআউট ঠিক করা হয়েছে) ===== */
 .promo-strip{display:flex; width:100%; gap:10px; padding:4px 14px 14px;}
@@ -783,6 +796,165 @@ let currentProductId = null;
 let currentColorSelection = {};
 let currentSizeSelection = {};
 function safeCacheSet(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){} }
+
+/* ===================== REFERRAL (রেফার সিস্টেম) ===================== */
+const REF_STORE_KEY = 'dps_ref';
+const REFERRAL_SETTINGS = {customer:0, reseller:0};
+let referralCountCache = 0;
+let referralCodeEnsuring = false;
+let referralCodeFailed = false;
+function normRefCode(v){ return String(v||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function getStoredRef(){ try{ return JSON.parse(localStorage.getItem(REF_STORE_KEY)||'null'); }catch(e){ return null; } }
+function setStoredRef(o){ try{ localStorage.setItem(REF_STORE_KEY, JSON.stringify(o)); }catch(e){} }
+async function lookupReferralCode(code){
+  code = normRefCode(code);
+  if(code.length<4 || code.length>12) return null;
+  try{
+    const snap = await Promise.race([
+      db.ref('referralCodes/'+code).once('value'),
+      new Promise(r=>setTimeout(()=>r(null), 4000))
+    ]);
+    return (snap && snap.exists()) ? String(snap.val()) : null;
+  }catch(e){ return null; }
+}
+/* রেফার লিংকে ক্লিক করে ওয়েবসাইটে ঢুকলে কোডটা ব্রাউজারে মনে রাখা হয় — পরে অর্ডার/অ্যাকাউন্ট করলে কাজে লাগে */
+(function captureReferralFromUrl(){
+  try{
+    const code = normRefCode(new URLSearchParams(location.search).get('ref'));
+    if(!code) return;
+    const st = getStoredRef();
+    if(!st || st.code !== code) setStoredRef({code, uid:null, t:Date.now()});
+    lookupReferralCode(code).then(uid=>{
+      if(!uid) return;
+      const cur = getStoredRef();
+      if(cur && cur.code === code){ cur.uid = uid; setStoredRef(cur); }
+    });
+  }catch(e){}
+})();
+/* অর্ডারের জন্য রেফারার ঠিক করা:
+   ১) অ্যাকাউন্টে referredBy থাকলে সেটাই (Reseller হলে শুধু এটাই — তখন কমিশন 'reseller' ধরনের)
+   ২) নইলে (Reseller না হলে) লিংক থেকে মনে রাখা কোড — Guest ও সাধারণ অ্যাকাউন্ট দুইজনের জন্যই একই কমিশন */
+async function resolveOrderReferral(resellerActive){
+  try{
+    const prof = currentUserProfile || {};
+    let refUid = null, code = null;
+    if(currentUser && prof.referredBy){ refUid = prof.referredBy; code = prof.referredByCode || null; }
+    else if(!resellerActive){
+      const st = getStoredRef();
+      if(st && st.code){ refUid = st.uid || await lookupReferralCode(st.code); code = st.code; }
+    }
+    if(!refUid) return null;
+    if(currentUser && refUid === currentUser.uid) return null;
+    return {uid:refUid, code, type: resellerActive ? 'reseller' : 'customer'};
+  }catch(e){ return null; }
+}
+function referralLinkFor(code){ return location.href.split(/[?#]/)[0] + '?ref=' + code; }
+async function ensureReferralCode(){
+  if(referralCodeEnsuring || referralCodeFailed || !currentUser || !isActiveReseller()) return;
+  if(currentUserProfile && currentUserProfile.referralCode) return;
+  referralCodeEnsuring = true;
+  try{
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    for(let attempt=0; attempt<6; attempt++){
+      let code = '';
+      for(let i=0;i<6;i++) code += chars[Math.floor(Math.random()*chars.length)];
+      const ref = db.ref('referralCodes/'+code);
+      const snap = await ref.once('value');
+      if(snap.exists()) continue;
+      await ref.set(currentUser.uid);
+      await db.ref('users/'+currentUser.uid+'/referralCode').set(code);
+      break;
+    }
+  }catch(e){
+    console.error('Referral code error:', e);
+    referralCodeFailed = true;
+    if(!document.getElementById('profilePanel').classList.contains('hidden')) renderProfilePanel();
+  }finally{ referralCodeEnsuring = false; }
+}
+function copyReferralText(txt){
+  const fallback = ()=>{
+    const ta = document.createElement('textarea');
+    ta.value = txt; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); showToast('কপি হয়েছে'); }catch(e){ showToast('কপি করা যায়নি'); }
+    ta.remove();
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(()=>showToast('কপি হয়েছে')).catch(fallback);
+  } else fallback();
+}
+function referralSectionHtml(p){
+  const bal = resellerBalanceCache || {};
+  const code = p.referralCode || '';
+  const earnings = Number(bal.referralEarnings||0);
+  const refOrders = Number(bal.referralOrders||0);
+  const c1 = Number(REFERRAL_SETTINGS.customer||0), c2 = Number(REFERRAL_SETTINGS.reseller||0);
+  if(!code) setTimeout(ensureReferralCode, 0);
+  let info = 'আপনার রেফার লিংক বা কোড দিয়ে কেউ অর্ডার করলে (অ্যাকাউন্ট থাকুক বা না থাকুক) অর্ডার ডেলিভারি হওয়ার পর';
+  info += c1>0 ? ' প্রতি অর্ডারে '+fmtTk(c1) : ' কমিশন';
+  info += ' আপনার Available Balance-এ যোগ হবে।';
+  if(c2>0) info += ' আপনার রেফার করা কেউ পরে Reseller হয়ে অর্ডার আনলে, ডেলিভারির পর প্রতি অর্ডারে '+fmtTk(c2)+' পাবেন।';
+  return `
+    <div class="section-heading">Refer &amp; Earn</div>
+    <div class="info-card">
+      <div class="ord-ov-grid" style="grid-template-columns:repeat(3,1fr); margin-bottom:12px;">
+        <div class="ord-ov-card c-total"><div class="ord-ov-num">${referralCountCache}</div><div class="ord-ov-label">মোট রেফার</div></div>
+        <div class="ord-ov-card c-pending"><div class="ord-ov-num">${refOrders}</div><div class="ord-ov-label">রেফার অর্ডার</div></div>
+        <div class="ord-ov-card c-completed"><div class="ord-ov-num" style="font-size:15px;">${fmtTk(earnings)}</div><div class="ord-ov-label">রেফার ইনকাম</div></div>
+      </div>
+      ${code ? `
+      <div class="form-field"><label>আপনার রেফার কোড</label>
+        <div style="display:flex; gap:8px;"><input type="text" readonly value="${code}" style="flex:1; font-weight:700; letter-spacing:2px;"><button type="button" class="btn btn-solid" style="padding:0 16px;" data-ref-copy="${code}">Copy</button></div>
+      </div>
+      <div class="form-field"><label>আপনার রেফার লিংক</label>
+        <div style="display:flex; gap:8px;"><input type="text" readonly value="${referralLinkFor(code)}" style="flex:1; min-width:0; font-size:12px;"><button type="button" class="btn btn-solid" style="padding:0 16px;" data-ref-copy="${referralLinkFor(code)}">Copy</button><button type="button" class="btn btn-solid" style="padding:0 16px;" data-ref-share="${referralLinkFor(code)}">Share</button></div>
+      </div>`
+      : `<div class="withdraw-hint" style="margin:0 0 10px;">${referralCodeFailed ? 'রেফার কোড তৈরি করা যায়নি — কিছুক্ষণ পর পেজ রিফ্রেশ করে আবার চেষ্টা করুন।' : 'রেফার কোড তৈরি হচ্ছে...'}</div>`}
+      <div class="withdraw-hint" style="margin:0;">${info}</div>
+    </div>`;
+}
+
+/* ===== Desktop-only arrows: মাউস দিয়ে স্লাইড ঘোরানো যায় না, তাই ডেস্কটপে তীর বাটন (মোবাইলে CSS দিয়ে লুকানো) ===== */
+function attachDesktopArrows(scroller, opts){
+  if(!scroller || scroller.dataset.dskArrows) return;
+  opts = opts || {};
+  scroller.dataset.dskArrows = '1';
+  const host = document.createElement('div');
+  host.className = 'dsk-arrow-host';
+  scroller.parentNode.insertBefore(host, scroller);
+  host.appendChild(scroller);
+  const chev = (d)=>`<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="${d<0?'15 6 9 12 15 18':'9 6 15 12 9 18'}"/></svg>`;
+  const mk = (dir)=>{
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'dsk-arrow dsk-arrow-'+(dir<0?'prev':'next')+(opts.sm?' dsk-arrow-sm':'');
+    b.setAttribute('aria-label', dir<0 ? 'আগেরটা' : 'পরেরটা');
+    b.innerHTML = chev(dir);
+    b.addEventListener('click', (e)=>{ e.stopPropagation(); go(dir); });
+    host.appendChild(b);
+    return b;
+  };
+  const go = (dir)=>{
+    const max = scroller.scrollWidth - scroller.clientWidth;
+    const step = opts.page ? scroller.clientWidth : Math.max(120, scroller.clientWidth*0.7);
+    if(opts.wrap){
+      if(dir>0 && scroller.scrollLeft >= max-4){ scroller.scrollTo({left:0, behavior:'smooth'}); return; }
+      if(dir<0 && scroller.scrollLeft <= 4){ scroller.scrollTo({left:max, behavior:'smooth'}); return; }
+    }
+    scroller.scrollBy({left: dir*step, behavior:'smooth'});
+  };
+  const prev = mk(-1), next = mk(1);
+  const update = ()=>{
+    const max = scroller.scrollWidth - scroller.clientWidth;
+    const show = max > 4;
+    prev.classList.toggle('dsk-arrow-hidden', !show || (!opts.wrap && scroller.scrollLeft <= 2));
+    next.classList.toggle('dsk-arrow-hidden', !show || (!opts.wrap && scroller.scrollLeft >= max-2));
+  };
+  scroller.addEventListener('scroll', update, {passive:true});
+  window.addEventListener('resize', update);
+  update(); setTimeout(update, 300); setTimeout(update, 1200);
+  scroller._dskUpdate = update;
+}
 /* রিসেলার প্রোডাক্ট ডিটেলসে যে Sell Price বসান, তা এখানে ধরে রাখা হয় — যাতে রং সিলেক্ট করার
    সময় PDP রি-রেন্ডার হলেও (renderPdpIfOpen) আগে বসানো Sell Price হারিয়ে না যায়/Reseller Price-এ
    ফিরে না যায়। */
@@ -886,6 +1058,8 @@ function initFastFirebase(){
   db.ref('siteContent').on('value', snap => {
     const c = snap.val();
     if(!c) return;
+    REFERRAL_SETTINGS.customer = Number(c.referralCommissionCustomer)||0;
+    REFERRAL_SETTINGS.reseller = Number(c.referralCommissionReseller)||0;
     if(c.aboutShop) document.querySelectorAll('.contact-about').forEach(el=>{ el.textContent = c.aboutShop; });
     if(c.phone){ SOCIAL_LINKS.phone = c.phone; }
     if(c.email){ SOCIAL_LINKS.email = c.email; }
@@ -950,9 +1124,10 @@ function renderBanners(){
       const idx = Math.round(track.scrollLeft/track.clientWidth);
       dots.forEach((d,i)=>d.classList.toggle('active', i===idx));
     });
+    attachDesktopArrows(track, {page:true, wrap:true});
     let autoIdx=0;
     setInterval(()=>{
-      autoIdx = (autoIdx+1)%list.length;
+      autoIdx = (Math.round(track.scrollLeft/track.clientWidth)+1)%list.length;
       track.scrollTo({left: autoIdx*track.clientWidth, behavior:'smooth'});
     }, 4500);
   }
@@ -968,6 +1143,9 @@ function renderCategories(){
   const rest = list.slice(4);
   document.getElementById('catGridTop').innerHTML = top.map(catCardHtml).join('');
   document.getElementById('catScrollRest').innerHTML = rest.map(catPillHtml).join('');
+  const _catScroller = document.getElementById('catScrollRest');
+  attachDesktopArrows(_catScroller, {sm:true});
+  if(_catScroller._dskUpdate) setTimeout(_catScroller._dskUpdate, 50);
   document.querySelectorAll('[data-cat-id]').forEach(el=>{
     el.addEventListener('click', ()=>{
       const id = el.getAttribute('data-cat-id');
@@ -1406,6 +1584,7 @@ function renderPdpIfOpen(){
   };
 
   const track = document.getElementById('pdpTrack');
+  if(track && track.children.length > 1) attachDesktopArrows(track, {page:true, wrap:true});
   const dots = document.querySelectorAll('#pdpDots span');
   if(track && dots.length){
     track.addEventListener('scroll', ()=>{
@@ -1881,6 +2060,7 @@ document.getElementById('placeOrderBtn').addEventListener('click', async ()=>{
     }
     return entry;
   });
+  const _ref = await resolveOrderReferral(resellerActive);
   const orderData = {
     orderId, name, phone, district, thana, address,
     items, productTotal: total, deliveryCharge: delivery, grandTotal: total+delivery,
@@ -1890,6 +2070,11 @@ document.getElementById('placeOrderBtn').addEventListener('click', async ()=>{
     resellerUid: resellerActive ? currentUser.uid : null,
     totalProfit: resellerActive ? totalProfit : 0
   };
+  if(_ref){
+    orderData.referrerUid = _ref.uid;
+    orderData.referralCode = _ref.code || null;
+    orderData.referralType = _ref.type;
+  }
   try{
     await db.ref('orders/'+orderId).set(orderData);
     if(currentUser){
@@ -2059,11 +2244,16 @@ auth.onAuthStateChanged(async (user)=>{
     resellerOrdersCache = [];
     resellerProfitCache = [];
     withdrawHistoryCache = [];
+    referralCountCache = 0;
   }
   if(!document.getElementById('profilePanel').classList.contains('hidden')) renderProfilePanel();
 });
 
 function listenUserOrders(uid){
+  db.ref('referrals/'+uid).on('value', snap=>{
+    referralCountCache = snap.numChildren();
+    if(!document.getElementById('profilePanel').classList.contains('hidden')) renderProfilePanel();
+  }, ()=>{});
   db.ref('orders').orderByChild('uid').equalTo(uid).on('value', snap=>{
     const val = snap.val() || {};
     userOrdersCache = Object.values(val).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
@@ -2107,14 +2297,26 @@ async function handleRegister(){
   if(pass.length<6){ showToast('পাসওয়ার্ড কমপক্ষে ৬ ডিজিট হতে হবে'); return; }
   if(btn) btn.disabled = true;
   try{
+    /* রেফার কোড দেওয়া থাকলে অ্যাকাউন্ট খোলার আগেই যাচাই — ভুল কোড হলে অ্যাকাউন্ট খোলা হবে না */
+    const _refEl = document.getElementById('regRefCode');
+    const refCode = _refEl ? normRefCode(_refEl.value) : '';
+    let refUid = null;
+    if(refCode){
+      refUid = await lookupReferralCode(refCode);
+      if(!refUid){ showToast('রেফার কোডটি সঠিক নয় — ঠিক করুন অথবা খালি রাখুন'); return; }
+    }
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     await cred.user.updateProfile({displayName:name});
     const accountId = await genAccountId();
     await db.ref('users/'+cred.user.uid).set({
       name, email, accountId, phone:'', address:null,
       resellerStatus:'none', shopName:'', resellerName:name,
+      referredBy: refUid || null, referredByCode: refUid ? refCode : null,
       createdAt: firebase.database.ServerValue.TIMESTAMP
     });
+    if(refUid){
+      try{ await db.ref('referrals/'+refUid+'/'+cred.user.uid).set({name, createdAt: firebase.database.ServerValue.TIMESTAMP}); }catch(e){}
+    }
     await cred.user.sendEmailVerification();
     showToast('ভেরিফিকেশন ইমেইল পাঠানো হয়েছে');
     renderProfilePanel();
@@ -2602,6 +2804,7 @@ function authFormHtml(){
           <button type="button" class="pwd-eye-btn" data-pwd-toggle="regPassword">${eyeIcon(false)}</button>
         </div>
       </div>
+      <div class="form-field"><label>রেফার কোড (ঐচ্ছিক)</label><input type="text" id="regRefCode" placeholder="থাকলে কোডটি লিখুন" maxlength="12" value="${normRefCode((getStoredRef()||{}).code)}" style="text-transform:uppercase;"></div>
       <button class="btn btn-solid" style="width:100%;" id="regSubmitBtn">Continue</button>
       <div style="text-align:center; margin-top:14px; font-size:12.5px; color:var(--ink-soft);">অ্যাকাউন্ট ছাড়াও অর্ডার করা যাবে — Guest হিসেবে কেনাকাটা চালিয়ে যান।</div>
     `;
@@ -2810,6 +3013,7 @@ function resellerDashboardHtml(p){
       <div class="ord-ov-card c-cancelled"><div class="ord-ov-num">${cancelledOrders}</div><div class="ord-ov-label">Cancelled orders</div></div>
       <div class="ord-ov-card c-total"><div class="ord-ov-num">${totalOrders}</div><div class="ord-ov-label">Total orders</div></div>
     </div>
+    ${referralSectionHtml(p)}
   `;
 }
 function bindProfileViewEvents(){
@@ -2821,6 +3025,12 @@ function bindProfileViewEvents(){
   if(withdrawHistCard) withdrawHistCard.addEventListener('click', openWithdrawHistory);
   const manageCard = document.querySelector('[data-open-manage]');
   if(manageCard) manageCard.addEventListener('click', openManageAccount);
+  document.querySelectorAll('[data-ref-copy]').forEach(b=>b.addEventListener('click', ()=>copyReferralText(b.getAttribute('data-ref-copy'))));
+  document.querySelectorAll('[data-ref-share]').forEach(b=>b.addEventListener('click', ()=>{
+    const url = b.getAttribute('data-ref-share');
+    if(navigator.share){ navigator.share({title:"Daily'put Shop", text:"Daily'put Shop-এ কেনাকাটা করুন", url}).catch(()=>{}); }
+    else copyReferralText(url);
+  }));
 }
 function openOrdersListPanel(){
   const isReseller = isActiveReseller();

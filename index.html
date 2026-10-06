@@ -914,47 +914,169 @@ function referralSectionHtml(p){
     </div>`;
 }
 
-/* ===== Desktop-only arrows: মাউস দিয়ে স্লাইড ঘোরানো যায় না, তাই ডেস্কটপে তীর বাটন (মোবাইলে CSS দিয়ে লুকানো) ===== */
-function attachDesktopArrows(scroller, opts){
+/* ===== Desktop-only arrows (ব্যানার ও প্রোডাক্ট ছবি): মাউস দিয়ে স্লাইড ঘোরানো যায় না, তাই ডেস্কটপে তীর বাটন (মোবাইলে CSS দিয়ে লুকানো)।
+   যেদিকে আরেকটা ছবি আছে শুধু সেদিকের তীরটাই দেখায় — প্রথম ছবিতে শুধু ডানের, শেষ ছবিতে শুধু বামের।
+   প্রতি ক্লিকে ঠিক একটা ছবি সরে আসে, দুইটা ছবি একসাথে আধা-আধি দেখা যায় না। ===== */
+function attachDesktopArrows(scroller){
   if(!scroller || scroller.dataset.dskArrows) return;
-  opts = opts || {};
   scroller.dataset.dskArrows = '1';
   const host = document.createElement('div');
   host.className = 'dsk-arrow-host';
   scroller.parentNode.insertBefore(host, scroller);
   host.appendChild(scroller);
   const chev = (d)=>`<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="${d<0?'15 6 9 12 15 18':'9 6 15 12 9 18'}"/></svg>`;
-  const mk = (dir)=>{
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'dsk-arrow dsk-arrow-'+(dir<0?'prev':'next')+(opts.sm?' dsk-arrow-sm':'');
-    b.setAttribute('aria-label', dir<0 ? 'আগেরটা' : 'পরেরটা');
-    b.innerHTML = chev(dir);
-    b.addEventListener('click', (e)=>{ e.stopPropagation(); go(dir); });
-    host.appendChild(b);
-    return b;
-  };
+  let pendingIdx = null, settleTimer = null;
+  const count = ()=>scroller.children.length;
+  const curIdx = ()=>Math.round(scroller.scrollLeft / Math.max(1, scroller.clientWidth));
   const go = (dir)=>{
-    const max = scroller.scrollWidth - scroller.clientWidth;
-    const step = opts.page ? scroller.clientWidth : Math.max(120, scroller.clientWidth*0.7);
-    if(opts.wrap){
-      if(dir>0 && scroller.scrollLeft >= max-4){ scroller.scrollTo({left:0, behavior:'smooth'}); return; }
-      if(dir<0 && scroller.scrollLeft <= 4){ scroller.scrollTo({left:max, behavior:'smooth'}); return; }
-    }
-    scroller.scrollBy({left: dir*step, behavior:'smooth'});
+    const base = pendingIdx !== null ? pendingIdx : curIdx();
+    const idx = Math.max(0, Math.min(count()-1, base + dir));
+    if(idx === base) return;
+    pendingIdx = idx;
+    scroller.scrollTo({left: idx * scroller.clientWidth, behavior:'smooth'});
+    update();
+  };
+  const mk = (dir)=>{
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dsk-arrow dsk-arrow-'+(dir<0?'prev':'next');
+    btn.setAttribute('aria-label', dir<0 ? 'আগের ছবি' : 'পরের ছবি');
+    btn.innerHTML = chev(dir);
+    btn.addEventListener('click', (e)=>{ e.stopPropagation(); go(dir); });
+    host.appendChild(btn);
+    return btn;
   };
   const prev = mk(-1), next = mk(1);
-  const update = ()=>{
-    const max = scroller.scrollWidth - scroller.clientWidth;
-    const show = max > 4;
-    prev.classList.toggle('dsk-arrow-hidden', !show || (!opts.wrap && scroller.scrollLeft <= 2));
-    next.classList.toggle('dsk-arrow-hidden', !show || (!opts.wrap && scroller.scrollLeft >= max-2));
+  function update(){
+    const idx = pendingIdx !== null ? pendingIdx : curIdx();
+    prev.classList.toggle('dsk-arrow-hidden', idx <= 0 || count() < 2);
+    next.classList.toggle('dsk-arrow-hidden', idx >= count()-1 || count() < 2);
+  }
+  scroller.addEventListener('scroll', ()=>{
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(()=>{ pendingIdx = null; update(); }, 140);
+    update();
+  }, {passive:true});
+  const onResize = ()=>{
+    if(!scroller.isConnected){ window.removeEventListener('resize', onResize); return; }
+    update();
   };
-  scroller.addEventListener('scroll', update, {passive:true});
-  window.addEventListener('resize', update);
-  update(); setTimeout(update, 300); setTimeout(update, 1200);
+  window.addEventListener('resize', onResize);
+  update(); setTimeout(update, 300);
   scroller._dskUpdate = update;
 }
+
+/* ===== ক্যাটাগরির গোল আইকন: হেডলাইনের মতো নিজে নিজে আস্তে আস্তে চলতে থাকে (অবিরাম লুপ)।
+   টাচ/মাউস দিয়ে টেনে এদিক-সেদিক করা যায় (ডেস্কটপে মাউস ড্র্যাগও কাজ করে);
+   মাউস উপরে থাকলে বা ধরে টানার সময় থেমে থাকে, ছাড়লে আবার চলে ===== */
+function setupCategoryMarquee(el){
+  if(!el) return;
+  if(el._mq){ el._mq.stop(); el._mq = null; }
+  el.querySelectorAll('[data-mq-clone]').forEach(n=>n.remove());
+  const originals = Array.from(el.children);
+  const n = originals.length;
+  el.style.scrollBehavior = 'auto';
+  el.style.cursor = '';
+  if(n < 3) return;
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const cloneSet = ()=>originals.forEach(o=>{
+    const c = o.cloneNode(true);
+    c.setAttribute('data-mq-clone','1');
+    c.removeAttribute('data-cat-id');
+    c.setAttribute('aria-hidden','true');
+    c.addEventListener('click', ()=>o.click());
+    el.appendChild(c);
+  });
+  cloneSet();
+  const loopW = el.children[n].offsetLeft - el.children[0].offsetLeft;
+  if(!(loopW > 20)){ el.querySelectorAll('[data-mq-clone]').forEach(x=>x.remove()); return; }
+  const copies = Math.ceil(el.clientWidth / loopW) + 2;
+  for(let i=2;i<copies;i++) cloneSet();
+
+  let pos = loopW + Math.min(el._mqRel || 0, loopW - 1);
+  el.scrollLeft = pos;
+  let userActive = false, hover = false, resumeTimer = null, dragging = false, moved = false;
+  let startX = 0, startScroll = 0, raf = 0, last = 0, stopped = false;
+  const SPEED = 28; /* px প্রতি সেকেন্ড — আস্তে আস্তে */
+  const norm = ()=>{
+    if(pos >= 2*loopW){ pos -= loopW; el.scrollLeft = pos; }
+    else if(pos < loopW){ pos += loopW; el.scrollLeft = pos; }
+  };
+  const hold = ()=>{ userActive = true; clearTimeout(resumeTimer); };
+  const release = ()=>{ clearTimeout(resumeTimer); resumeTimer = setTimeout(()=>{ userActive = false; }, 1500); };
+  const tick = (t)=>{
+    if(stopped) return;
+    if(!el.isConnected){ stopped = true; return; }
+    const dt = last ? Math.min(64, t - last) : 16;
+    last = t;
+    if(!userActive && !hover && !dragging && !reduce){
+      if(Math.abs(el.scrollLeft - pos) > 3) pos = el.scrollLeft; /* টেনে ছাড়ার পর মোমেন্টাম শেষ হলে সেখান থেকেই আবার চলবে */
+      pos += SPEED * dt / 1000;
+      norm();
+      el.scrollLeft = pos;
+    }
+    el._mqRel = (pos - loopW);
+    raf = requestAnimationFrame(tick);
+  };
+  const onScroll = ()=>{ if(userActive || dragging){ pos = el.scrollLeft; norm(); } };
+  const onTouchStart = ()=>hold();
+  const onTouchEnd = ()=>release();
+  const onWheel = ()=>{ hold(); release(); };
+  const onEnter = (e)=>{ if(e.pointerType==='mouse' || !e.pointerType) hover = true; };
+  const onLeave = ()=>{ hover = false; };
+  const onDown = (e)=>{
+    if(e.pointerType !== 'mouse' || e.button !== 0) return;
+    dragging = true; moved = false; startX = e.clientX; startScroll = el.scrollLeft;
+    hold();
+    el.style.cursor = 'grabbing';
+  };
+  const onMove = (e)=>{
+    if(!dragging) return;
+    const dx = e.clientX - startX;
+    if(Math.abs(dx) > 5) moved = true;
+    pos = startScroll - dx;
+    el.scrollLeft = pos;
+    norm();
+    if(pos !== el.scrollLeft){ startX = e.clientX; startScroll = pos; }
+  };
+  const onUp = ()=>{
+    if(!dragging) return;
+    dragging = false; el.style.cursor = 'grab'; release();
+  };
+  const onClickCapture = (e)=>{ if(moved){ e.stopPropagation(); e.preventDefault(); moved = false; } };
+  el.addEventListener('scroll', onScroll, {passive:true});
+  el.addEventListener('touchstart', onTouchStart, {passive:true});
+  el.addEventListener('touchend', onTouchEnd, {passive:true});
+  el.addEventListener('touchcancel', onTouchEnd, {passive:true});
+  el.addEventListener('wheel', onWheel, {passive:true});
+  el.addEventListener('pointerenter', onEnter);
+  el.addEventListener('pointerleave', onLeave);
+  el.addEventListener('pointerdown', onDown);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  el.addEventListener('click', onClickCapture, true);
+  el.style.cursor = 'grab';
+  raf = requestAnimationFrame(tick);
+  el._mq = { stop(){
+    stopped = true; cancelAnimationFrame(raf); clearTimeout(resumeTimer);
+    el.removeEventListener('scroll', onScroll);
+    el.removeEventListener('touchstart', onTouchStart);
+    el.removeEventListener('touchend', onTouchEnd);
+    el.removeEventListener('touchcancel', onTouchEnd);
+    el.removeEventListener('wheel', onWheel);
+    el.removeEventListener('pointerenter', onEnter);
+    el.removeEventListener('pointerleave', onLeave);
+    el.removeEventListener('pointerdown', onDown);
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    el.removeEventListener('click', onClickCapture, true);
+  }};
+}
+let _catMqResizeTimer = null;
+window.addEventListener('resize', ()=>{
+  clearTimeout(_catMqResizeTimer);
+  _catMqResizeTimer = setTimeout(()=>{ const el = document.getElementById('catScrollRest'); if(el && el.children.length) setupCategoryMarquee(el); }, 250);
+});
 /* রিসেলার প্রোডাক্ট ডিটেলসে যে Sell Price বসান, তা এখানে ধরে রাখা হয় — যাতে রং সিলেক্ট করার
    সময় PDP রি-রেন্ডার হলেও (renderPdpIfOpen) আগে বসানো Sell Price হারিয়ে না যায়/Reseller Price-এ
    ফিরে না যায়। */
@@ -1124,9 +1246,10 @@ function renderBanners(){
       const idx = Math.round(track.scrollLeft/track.clientWidth);
       dots.forEach((d,i)=>d.classList.toggle('active', i===idx));
     });
-    attachDesktopArrows(track, {page:true, wrap:true});
+    attachDesktopArrows(track);
     let autoIdx=0;
-    setInterval(()=>{
+    if(window._bannerTimer) clearInterval(window._bannerTimer);
+    window._bannerTimer = setInterval(()=>{
       autoIdx = (Math.round(track.scrollLeft/track.clientWidth)+1)%list.length;
       track.scrollTo({left: autoIdx*track.clientWidth, behavior:'smooth'});
     }, 4500);
@@ -1142,10 +1265,11 @@ function renderCategories(){
   const top = list.slice(0,4);
   const rest = list.slice(4);
   document.getElementById('catGridTop').innerHTML = top.map(catCardHtml).join('');
-  document.getElementById('catScrollRest').innerHTML = rest.map(catPillHtml).join('');
   const _catScroller = document.getElementById('catScrollRest');
-  attachDesktopArrows(_catScroller, {sm:true});
-  if(_catScroller._dskUpdate) setTimeout(_catScroller._dskUpdate, 50);
+  const _catKeepPos = _catScroller._mqRel || 0;
+  _catScroller.innerHTML = rest.map(catPillHtml).join('');
+  _catScroller._mqRel = _catKeepPos;
+  setupCategoryMarquee(_catScroller);
   document.querySelectorAll('[data-cat-id]').forEach(el=>{
     el.addEventListener('click', ()=>{
       const id = el.getAttribute('data-cat-id');
@@ -1584,7 +1708,7 @@ function renderPdpIfOpen(){
   };
 
   const track = document.getElementById('pdpTrack');
-  if(track && track.children.length > 1) attachDesktopArrows(track, {page:true, wrap:true});
+  if(track && track.children.length > 1) attachDesktopArrows(track);
   const dots = document.querySelectorAll('#pdpDots span');
   if(track && dots.length){
     track.addEventListener('scroll', ()=>{

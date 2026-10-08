@@ -1345,7 +1345,7 @@ function renderProducts(){
   const titleEl = document.getElementById('prodSectionTitle');
   if(showBestDiscount){
     list = list
-      .map(p=>({...p, ...computeDiscount(p)}))
+      .map(p=>({...p, ...computeDiscount(baseView(p))}))
       .filter(p=>p.pct>0)
       .sort((a,b)=>b.pct-a.pct)
       .slice(0, 50); /* শুধু সবচেয়ে বেশি ছাড়ের ৫০টা প্রোডাক্ট দেখাবে */
@@ -1398,8 +1398,38 @@ function computeDiscount(p){
   const pct = orig>disc && orig>0 ? Math.round(((orig-disc)/orig)*100) : 0;
   return {orig, disc, pct};
 }
+/* ===== অপশন-ভিত্তিক দাম (এডমিন থেকে চালু করা থাকলে): সিলেক্ট করা সাইজ/অপশন অনুযায়ী ইউজার ও রিসেলারের আলাদা দাম ===== */
+function getOptionPricing(p, size){
+  if(!p || !p.optionPricing || !size) return null;
+  const names = p.sizes ? Object.values(p.sizes) : [];
+  const prices = p.sizePrices ? Object.values(p.sizePrices) : [];
+  const i = names.indexOf(size);
+  if(i < 0 || !prices[i]) return null;
+  const o = Number(prices[i].o)||0, pr = Number(prices[i].p)||0, rp = Number(prices[i].r)||0;
+  if(o <= 0 && pr <= 0 && rp <= 0) return null;
+  return {orig:o, price:pr, resellerPrice:rp};
+}
+function productForSize(p, size){
+  const o = getOptionPricing(p, size);
+  if(!o) return p;
+  const q = Object.assign({}, p);
+  if(o.price > 0 || o.orig > 0){
+    q.discountedPrice = o.price > 0 ? o.price : o.orig;
+    q.originalPrice = o.orig > 0 ? o.orig : q.discountedPrice;
+  }
+  if(o.resellerPrice > 0) q.resellerPrice = o.resellerPrice;
+  return q;
+}
+/* অপশন-ভিত্তিক দাম চালু থাকলে লিস্ট/কার্ডে ও পণ্য পেজ খোলার সময় প্রথম অপশনের দামই আগে দেখায় */
+function firstOptionName(p){
+  if(!p || !p.optionPricing || !p.sizes) return null;
+  const n = Object.values(p.sizes);
+  return n.length ? n[0] : null;
+}
+function baseView(p){ return productForSize(p, firstOptionName(p)); }
 /* কার্ট/অর্ডারে প্রকৃত বিক্রয়মূল্য: রিসেলার হলে তার নিজের সেট করা Sell Price (COD-তে এটাই কালেক্ট হবে), না হলে সাধারণ Sale Price */
 function itemUnitPrice(item, p){
+  p = productForSize(p, item && item.size);
   const {disc} = computeDiscount(p||{});
   if(isActiveReseller() && p && p.resellerPrice && item && item.sellPrice!=null && !isNaN(item.sellPrice)){
     /* নিরাপত্তা: বিক্রয়মূল্য কখনোই Reseller Price-এর কম হতে দেওয়া হবে না */
@@ -1408,7 +1438,8 @@ function itemUnitPrice(item, p){
   return disc;
 }
 function productCardHtml(p, idx){
-  const {orig,disc,pct} = computeDiscount(p);
+  const pc = baseView(p);
+  const {orig,disc,pct} = computeDiscount(pc);
   const img = (p.images && p.images[0]) || p.imageUrl || '';
   const isFav = favorites.includes(p.id);
   const outOfStock = isOutOfStock(p);
@@ -1427,12 +1458,12 @@ function productCardHtml(p, idx){
         <span class="price-now">${fmtTk(disc)}</span>
         ${orig>disc?`<span class="price-old">${fmtTk(orig)}</span>`:''}
       </div>
-      ${(isActiveReseller() && p.resellerPrice)?`<div class="card-reseller-price">Reseller Price: ${fmtTk(p.resellerPrice)}</div>`:''}
+      ${(isActiveReseller() && pc.resellerPrice)?`<div class="card-reseller-price">Reseller Price: ${fmtTk(pc.resellerPrice)}</div>`:''}
     </div>
   </div>`;
 }
 function searchResultCardHtml(p){
-  const {orig,disc} = computeDiscount(p);
+  const {orig,disc} = computeDiscount(baseView(p));
   const img = (p.images && p.images[0]) || p.imageUrl || '';
   return `<div class="search-item" data-prod-open="${p.id}">
     <div class="search-item-img">${img?`<img src="${img}" loading="lazy" alt="${p.name}">`:''}</div>
@@ -1551,7 +1582,8 @@ function renderPdpIfOpen(){
   const p = allProducts[currentProductId];
   const view = document.getElementById('pdpView');
   if(!p){ view.innerHTML = `<div style="padding:40px 14px;text-align:center;color:var(--ink-soft)">Product পাওয়া যায়নি</div>`; return; }
-  const {orig,disc,pct} = computeDiscount(p);
+  const pz = productForSize(p, currentSizeSelection[currentProductId] || firstOptionName(p)); /* সিলেক্ট করা অপশনের দাম; সিলেক্ট না থাকলে প্রথম অপশনের */
+  const {orig,disc,pct} = computeDiscount(pz);
   const images = (p.images && p.images.length) ? p.images : (p.imageUrl?[p.imageUrl]:[]);
   const colors = p.colors || [];
   const sizes = p.sizes ? Object.values(p.sizes) : [];
@@ -1596,20 +1628,20 @@ function renderPdpIfOpen(){
         <span class="now">${fmtTk(disc)}</span>
         ${orig>disc?`<span class="old">${fmtTk(orig)}</span><span class="pct">${pct}% OFF</span>`:''}
       </div>
-      ${(isActiveReseller() && p.resellerPrice)?`
+      ${(isActiveReseller() && pz.resellerPrice)?`
       <div class="price-tier" style="margin:-4px 0 6px;">
         <span class="price-tier-label">Reseller Price</span>
-        <span class="price-tier-value reseller">${fmtTk(p.resellerPrice)}</span>
+        <span class="price-tier-value reseller">${fmtTk(pz.resellerPrice)}</span>
       </div>`:''}
       <div style="margin:2px 0 4px;">
         ${outOfStock?`<span class="pct" style="background:#FDEAEA;color:var(--danger);">স্টক আউট</span>`:`<span class="pct" style="background:#E7F7F0;color:var(--success);">স্টকে আছে</span>`}
       </div>
 
-      ${(isActiveReseller() && p.resellerPrice)?`
+      ${(isActiveReseller() && pz.resellerPrice)?`
       <div class="sell-price-box">
         <div class="pdp-section-label" style="margin:0 0 8px;">আপনার বিক্রয়মূল্য (Sell Price)</div>
         <div class="sell-price-row">
-          <input type="number" id="sellPriceInput" placeholder="আপনার বিক্রয়মূল্য (Sell Price)" value="${currentSellPriceInput[currentProductId] != null ? currentSellPriceInput[currentProductId] : p.resellerPrice}">
+          <input type="number" id="sellPriceInput" placeholder="আপনার বিক্রয়মূল্য (Sell Price)" value="${currentSellPriceInput[currentProductId] != null ? currentSellPriceInput[currentProductId] : pz.resellerPrice}">
           <span style="font-size:12px; color:var(--ink-soft);">টাকা</span>
         </div>
         <div class="profit-preview" id="profitPreview">Profit: ৳0</div>
@@ -1618,7 +1650,7 @@ function renderPdpIfOpen(){
       ${colors.length?`
       <div class="pdp-section-label">রঙ নির্বাচন করুন</div>
       <div class="color-opts" id="colorOpts">
-        ${colors.map(c=>`<div class="color-dot ${currentColorSelection[currentProductId]===c?'active':''}" style="background:${colorHex(c)}" data-color="${c}" title="${c}"></div>`).join('')}
+        ${colors.map(c=>`<div class="color-dot ${currentColorSelection[currentProductId]===c?'active':''}" style="background:${colorHex(c,p)}" data-color="${c}" title="${c}"></div>`).join('')}
       </div>`:''}
 
       ${sizes.length?`
@@ -1654,7 +1686,7 @@ function renderPdpIfOpen(){
       <div class="related-scroll" id="relatedScroll" style="margin-top:24px;">
         ${relatedSameCat.map(r=>{
           const rImg = (r.images && r.images[0]) || r.imageUrl || '';
-          const {disc: rDisc} = computeDiscount(r);
+          const {disc: rDisc} = computeDiscount(baseView(r));
           return `<div class="related-card" data-prod-open="${r.id}">
             <div class="r-img"><img src="${rImg}" loading="lazy"></div>
             <div class="r-body">
@@ -1732,6 +1764,7 @@ function renderPdpIfOpen(){
   document.querySelectorAll('#sizeOpts .size-chip').forEach(el=>{
     el.addEventListener('click', ()=>{
       currentSizeSelection[currentProductId] = el.getAttribute('data-size');
+      delete currentSellPriceInput[currentProductId]; /* অপশন বদলালে রিসেলারের Sell Price নতুন অপশনের Reseller Price থেকে শুরু হবে */
       renderPdpIfOpen();
     });
   });
@@ -1761,13 +1794,13 @@ function renderPdpIfOpen(){
      যাতে রিসেলার নিজে দেখে ঠিক করতে পারেন। কম থাকা অবস্থায় Buy Now / কার্টে যোগ করুন কাজ করবে না। */
   const isSellPriceValid = ()=>{
     if(!sellPriceInput) return true;
-    return Number(sellPriceInput.value||0) >= Number(p.resellerPrice||0);
+    return Number(sellPriceInput.value||0) >= Number(pz.resellerPrice||0);
   };
   if(sellPriceInput){
-    sellPriceInput.min = p.resellerPrice || 0;
+    sellPriceInput.min = pz.resellerPrice || 0;
     const updateProfitPreview = ()=>{
       const sp = Number(sellPriceInput.value||0);
-      const floor = Number(p.resellerPrice||0);
+      const floor = Number(pz.resellerPrice||0);
       const profit = sp - floor;
       const preview = document.getElementById('profitPreview');
       const valid = sp >= floor;
@@ -1804,7 +1837,7 @@ function renderPdpIfOpen(){
     openOrderPanel();
   };
 }
-function colorHex(name){
+function colorHex(name, prod){
   /* এডমিন প্যানেলের COLOR_PALETTE-এর সাথে হুবহু মিলিয়ে রাখা — এডমিন যে ৩০টা রঙের যেকোনোটা
      সিলেক্ট করুক না কেন, ওয়েবসাইটে সেটার আসল রংটাই দেখাবে (আগে শুধু ১৩টা পুরনো রং এখানে ছিল,
      বাকিগুলো ধূসর/#ccc হয়ে যেত — এটাই "অনেক রং ঠিকমতো দেখা যাচ্ছে না" সমস্যার কারণ ছিল)। */
@@ -1816,8 +1849,54 @@ function colorHex(name){
     Gold:'#d4af37', Brown:'#8b5a2b', Beige:'#e8dcc4', Cream:'#f3ecd8',
     'Sea Green':'#2e8b7a', Turquoise:'#30c9c9', Wine:'#5e1a33', Peach:'#f7c9a3',
     Lavender:'#c7b6f0', Mustard:'#d9a51c', Coral:'#f0704f', Mint:'#a6e8c8',
-    Sky:'#a8d8ff', Charcoal:'#3a3a3d'
+    Sky:'#a8d8ff', Charcoal:'#3a3a3d',
+    'Dark Green':'#14532d',
+    'Forest Green':'#228b22',
+    'Army Green':'#4b5320',
+    'Emerald':'#10b981',
+    'Lime':'#84cc16',
+    'Light Green':'#86efac',
+    'Sage':'#9caf88',
+    'Neon Green':'#39ff14',
+    'Teal':'#0f766e',
+    'Cyan':'#06b6d4',
+    'Aqua':'#7fdbda',
+    'Steel Blue':'#4682b4',
+    'Denim':'#1560bd',
+    'Royal Blue':'#1d4ed8',
+    'Light Blue':'#bfdbfe',
+    'Midnight':'#0f172a',
+    'Indigo':'#4338ca',
+    'Violet':'#7c3aed',
+    'Magenta':'#c026d3',
+    'Orchid':'#da70d6',
+    'Plum':'#6b2160',
+    'Rose':'#fb7185',
+    'Light Pink':'#fbcfe8',
+    'Baby Pink':'#ffd1dc',
+    'Neon Pink':'#ff10f0',
+    'Crimson':'#b91c1c',
+    'Burgundy':'#800020',
+    'Tomato':'#ef4444',
+    'Salmon':'#fa8072',
+    'Rust':'#b7410e',
+    'Copper':'#b87333',
+    'Bronze':'#cd7f32',
+    'Rose Gold':'#e8b4a0',
+    'Camel':'#c19a6b',
+    'Tan':'#d2b48c',
+    'Khaki':'#c3b091',
+    'Coffee':'#6f4e37',
+    'Chocolate':'#4a2c1a',
+    'Ivory':'#fffff0',
+    'Off White':'#f5f5f0',
+    'Light Grey':'#d1d5db',
+    'Dark Grey':'#4b5563',
+    'Neon Yellow':'#e6ff00',
+    'Lemon':'#fff44f'
   };
+  /* এডমিনের Mix (নিজস্ব) রং — পণ্যের colorHex থেকে */
+  if(prod && prod.colorHex && prod.colorHex[name]) return prod.colorHex[name];
   return map[name] || '#ccc';
 }
 function openZoom(src){
@@ -2171,9 +2250,10 @@ document.getElementById('placeOrderBtn').addEventListener('click', async ()=>{
        ফিরে যাবে না। itemUnitPrice() ইতিমধ্যে Math.max(sellPrice, resellerPrice) দিয়ে এটা
        নিশ্চিত করে, এখানে আবার একই নিয়মে price রি-কনফার্ম করা হচ্ছে (ডাবল সেফটি)। */
     const price = itemUnitPrice(item, p||{});
+    const pz = p ? productForSize(p, item.size) : p;
     const entry = { productId:item.prodId, name:p?p.name:'', code:p?p.code:'', color:item.color, size:item.size||null, qty:item.qty, price };
-    if(resellerActive && p && p.resellerPrice){
-      const rp = Number(p.resellerPrice);
+    if(resellerActive && pz && pz.resellerPrice){
+      const rp = Number(pz.resellerPrice);
       const sp = Math.max(Number(item.sellPrice!=null ? item.sellPrice : rp), rp);
       const itemProfit = (sp-rp)*item.qty;
       entry.resellerPrice = rp;
@@ -2928,7 +3008,7 @@ function authFormHtml(){
           <button type="button" class="pwd-eye-btn" data-pwd-toggle="regPassword">${eyeIcon(false)}</button>
         </div>
       </div>
-      <div class="form-field"><label>রেফার কোড (ঐচ্ছিক)</label><input type="text" id="regRefCode" placeholder="কোডটি লিখুন" maxlength="12" value="${normRefCode((getStoredRef()||{}).code)}" style="text-transform:uppercase;"></div>
+      <div class="form-field"><label>রেফার কোড (ঐচ্ছিক)</label><input type="text" id="regRefCode" placeholder="থাকলে কোডটি লিখুন" maxlength="12" value="${normRefCode((getStoredRef()||{}).code)}" style="text-transform:uppercase;"></div>
       <button class="btn btn-solid" style="width:100%;" id="regSubmitBtn">Continue</button>
       <div style="text-align:center; margin-top:14px; font-size:12.5px; color:var(--ink-soft);">অ্যাকাউন্ট ছাড়াও অর্ডার করা যাবে — Guest হিসেবে কেনাকাটা চালিয়ে যান।</div>
     `;

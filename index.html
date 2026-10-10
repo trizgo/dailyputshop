@@ -30,6 +30,8 @@
   --font-d:'Poppins','Hind Siliguri',sans-serif; --font-b:'Inter','Hind Siliguri',sans-serif;
 }
 *{box-sizing:border-box; margin:0; padding:0;}
+/* মোবাইল ব্রাউজারের Desktop Site মোডে ব্রাউজার নিজে থেকে কিছু লেখা (যেমন বড় বিবরণ) বড় করে দেয় (font boosting) — তাই সব লেখা এক বরাবর রাখতে এটা বন্ধ করা হলো */
+html{-webkit-text-size-adjust:100%; -moz-text-size-adjust:100%; -ms-text-size-adjust:100%; text-size-adjust:100%;}
 body{font-family:var(--font-b); color:var(--ink); background:var(--paper-soft); -webkit-tap-highlight-color:transparent; display:flex; flex-direction:column; min-height:100vh;}
 img{max-width:100%; display:block;}
 a{text-decoration:none; color:inherit;}
@@ -215,7 +217,8 @@ button{font-family:inherit; cursor:pointer; border:none; background:none;}
 /* ===== Product Details: ডেস্কটপে YouTube-এর মতো লেআউট (বাঁয়ে প্রোডাক্ট, ডানে একই ক্যাটাগরির প্রোডাক্ট) — মোবাইলে আগের মতোই ===== */
 .pdp-main,.pdp-left{display:block;}
 .pdp-side{display:none;}
-.pdp-lower{padding:0 14px;}
+.pdp-lower{padding:0 14px; scroll-margin-top:72px;}
+.side-fade,.pdp-more-below{display:none;}
 .side-title{font-weight:700; font-size:14px; margin-bottom:12px; color:var(--ink);}
 .side-item{display:flex; gap:10px; margin-bottom:12px; cursor:pointer;}
 .side-thumb{flex:0 0 124px; width:124px; aspect-ratio:1/1; border-radius:10px; overflow:hidden; background:var(--paper-soft);}
@@ -232,6 +235,15 @@ button{font-family:inherit; cursor:pointer; border:none; background:none;}
   .pdp .pdp-gallery{max-width:560px; margin:0 auto;}
   .pdp .pdp-body{padding:16px 0 0; max-width:760px; margin:0 auto;}
   .pdp-side{display:block; min-width:0; position:relative; align-self:stretch; min-height:480px;}
+  .pdp-side-inner .side-title{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .side-hint{font-size:11px; font-weight:600; color:var(--orange-dark); white-space:nowrap;}
+  .side-fade{display:block; position:absolute; left:0; right:6px; bottom:0; height:64px; pointer-events:none; background:linear-gradient(rgba(255,255,255,0), var(--paper) 88%); transition:opacity .2s;}
+  .side-fade.off{opacity:0;}
+  .pdp-more-below{display:flex; align-items:center; gap:8px; position:fixed; left:50%; transform:translateX(-50%); bottom:98px; z-index:7; background:var(--paper); color:var(--orange-dark); border:1.5px solid var(--orange); border-radius:999px; padding:9px 18px; font-size:13px; font-weight:700; box-shadow:0 4px 16px rgba(0,0,0,.18); cursor:pointer; transition:opacity .2s, transform .2s;}
+  .pdp-more-below:hover{background:var(--orange); color:#fff;}
+  .pdp-more-below svg{width:16px; height:16px; animation:pdpBounce 1.4s infinite;}
+  .pdp-more-below.gone{opacity:0; pointer-events:none; transform:translateX(-50%) translateY(10px);}
+  @keyframes pdpBounce{0%,100%{transform:translateY(0);}50%{transform:translateY(3px);}}
   .pdp-side-inner{position:absolute; inset:0; display:flex; flex-direction:column; min-height:0;}
   .pdp-side-inner .side-title{flex:0 0 auto;}
   #sideList{flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; padding-right:6px; cursor:grab; touch-action:pan-y;}
@@ -478,6 +490,7 @@ footer{background:var(--ink); color:#fff; padding:24px 14px 20px; text-align:cen
 .withdraw-mini-amt{font-family:var(--font-d); font-weight:700; font-size:15px;}
 .withdraw-mini-meta{font-size:11.5px; color:var(--ink-soft); margin-top:6px; line-height:1.6;}
 .withdraw-countdown{font-size:11.5px; font-weight:700; color:var(--orange-dark); margin-top:6px;}
+.withdraw-countdown.expired{color:var(--danger);}
 .status-processing{background:#FFF3E0; color:#B26A00;}
 .status-confirmed{background:#E7F7F0; color:var(--success);}
 
@@ -711,7 +724,7 @@ footer{background:var(--ink); color:#fff; padding:24px 14px 20px; text-align:cen
     </div>
     <div class="form-field"><label>Amount (সর্বনিম্ন ৳500) *</label><input type="number" id="withdrawAmount" placeholder="৫০০ টাকা বা তার বেশি"></div>
     <div class="form-field"><label>যে নাম্বারে টাকা নিবেন *</label><input type="tel" id="withdrawNumber" placeholder="01XXXXXXXXX" maxlength="11" inputmode="numeric"></div>
-    <div class="withdraw-hint">উত্তোলনের রিকোয়েস্ট দেওয়ার ৪৮ ঘণ্টার মধ্যে কনফার্ম করা হবে।</div>
+    <div class="withdraw-hint">উত্তোলনের রিকোয়েস্ট দেওয়ার ৭২ ঘণ্টার মধ্যে কনফার্ম করা হবে।</div>
     <button class="btn btn-solid" style="width:100%; padding:15px;" id="submitWithdrawBtn">Withdraw রিকোয়েস্ট পাঠান</button>
 
       <div class="wd-info">
@@ -737,7 +750,7 @@ footer{background:var(--ink); color:#fff; padding:24px 14px 20px; text-align:cen
           <div class="wd-note"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>শুধুমাত্র আপনার নিজের বিকাশ বা নগদ নাম্বার দিন এবং নিশ্চিত করার আগে নম্বরটি যাচাই করুন।</span></div>
           <div class="wd-note"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>রিকোয়েস্ট পাঠানোর পর ওই পরিমাণ টাকা Pending হিসেবে থাকবে এবং কনফার্ম হলে আপনার নাম্বারে পাঠিয়ে দেওয়া হবে।</span></div>
           <div class="wd-note"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>একসাথে সর্বনিম্ন ৫০০ টাকা বা তার বেশি Withdraw করা যায়।</span></div>
-          <div class="wd-note"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>প্রদর্শিত সময়সীমার (৪৮ ঘণ্টা) মধ্যে অনুরোধগুলো পর্যালোচনা করা হয়।</span></div>
+          <div class="wd-note"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>প্রদর্শিত সময়সীমার (৭২ ঘণ্টা) মধ্যে অনুরোধগুলো পর্যালোচনা করা হয়।</span></div>
         </div>
       </div>
   </div>
@@ -940,27 +953,38 @@ async function resolveOrderReferral(resellerActive){
   }catch(e){ return null; }
 }
 function referralLinkFor(code){ return location.href.split(/[?#]/)[0] + '?ref=' + code; }
-async function ensureReferralCode(){
-  if(referralCodeEnsuring || referralCodeFailed || !currentUser || !isActiveReseller()) return;
-  if(currentUserProfile && currentUserProfile.referralCode) return;
+let _refEnsurePromise = null;
+/* Active রিসেলারের রেফার কোড নিশ্চিত করে (না থাকলে তৈরি করে) এবং কোডটা ফেরত দেয় */
+function ensureReferralCode(){
+  if(!currentUser || !isActiveReseller()) return Promise.resolve(null);
+  if(currentUserProfile && currentUserProfile.referralCode) return Promise.resolve(currentUserProfile.referralCode);
+  if(referralCodeFailed) return Promise.resolve(null);
+  if(_refEnsurePromise) return _refEnsurePromise;
   referralCodeEnsuring = true;
-  try{
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    for(let attempt=0; attempt<6; attempt++){
-      let code = '';
-      for(let i=0;i<6;i++) code += chars[Math.floor(Math.random()*chars.length)];
-      const ref = db.ref('referralCodes/'+code);
-      const snap = await ref.once('value');
-      if(snap.exists()) continue;
-      await ref.set(currentUser.uid);
-      await db.ref('users/'+currentUser.uid+'/referralCode').set(code);
-      break;
-    }
-  }catch(e){
-    console.error('Referral code error:', e);
-    referralCodeFailed = true;
-    if(!document.getElementById('profilePanel').classList.contains('hidden')) renderProfilePanel();
-  }finally{ referralCodeEnsuring = false; }
+  _refEnsurePromise = (async ()=>{
+    let made = null;
+    try{
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      for(let attempt=0; attempt<6; attempt++){
+        let code = '';
+        for(let i=0;i<6;i++) code += chars[Math.floor(Math.random()*chars.length)];
+        const ref = db.ref('referralCodes/'+code);
+        const snap = await ref.once('value');
+        if(snap.exists()) continue;
+        await ref.set(currentUser.uid);
+        await db.ref('users/'+currentUser.uid+'/referralCode').set(code);
+        made = code;
+        if(currentUserProfile) currentUserProfile.referralCode = code;
+        break;
+      }
+    }catch(e){
+      console.error('Referral code error:', e);
+      referralCodeFailed = true;
+      if(!document.getElementById('profilePanel').classList.contains('hidden')) renderProfilePanel();
+    }finally{ referralCodeEnsuring = false; _refEnsurePromise = null; }
+    return made;
+  })();
+  return _refEnsurePromise;
 }
 function copyReferralText(txt){
   const fallback = ()=>{
@@ -1691,12 +1715,14 @@ function renderPdpIfOpen(){
   /* "Just For You" এখন প্রতিটা ক্যাটাগরি থেকে পালাক্রমে (round-robin) প্রোডাক্ট নেয়, যাতে
      কোনো একটা ক্যাটাগরির প্রোডাক্টই পুরো লিস্ট দখল করে না রাখে — প্রতিটা ক্যাটাগরিরই প্রোডাক্ট
      দেখা যায়, এবং মোট ৩০টা পর্যন্ত দেখানো হয় (আগে ছিল ১০টা)। */
-  const otherCatProducts = pickDiverseByCategory(getPublishedProducts().filter(x=>x.categoryId!==p.categoryId), 30);
+  const otherCatProducts = pickDiverseByCategory(getPublishedProducts().filter(x=>x.categoryId!==p.categoryId), 50); /* Just For You: একসাথে সরাসরি ৫০টা (আলাদা করে লোড হয় না) */
 
   /* নতুন মেসেজ ফরম্যাট তৈরি */
   const productUrl = window.location.origin + window.location.pathname + `?product=${p.id}${p.code ? '&code='+encodeURIComponent(p.code) : ''}`;
   const customMessage = `আমি এই সম্পর্কে জানতে চাই\nপ্রোডাক্ট নাম: ${p.name||''}\nপ্রোডাক্ট কোড: ${p.code||''}\nমূল্য: ${fmtTk(disc)}\nলিংক: ${productUrl}`;
 
+  const _prevSideEl = document.getElementById('sideList');
+  const _prevSideTop = _prevSideEl ? _prevSideEl.scrollTop : 0;
   view.innerHTML = `
     <div class="pdp-head">
       <div class="pdp-head-left">
@@ -1803,7 +1829,7 @@ function renderPdpIfOpen(){
     </div>
     <aside class="pdp-side">
       <div class="pdp-side-inner">
-      <div class="side-title">${(allCategories[p.categoryId]&&allCategories[p.categoryId].name)||'আরও প্রোডাক্ট'}</div>
+      <div class="side-title"><span>${(allCategories[p.categoryId]&&allCategories[p.categoryId].name)||'আরও প্রোডাক্ট'}</span><span class="side-hint">স্ক্রল করে আরও দেখুন ↕</span></div>
       <div id="sideList">
         ${relatedSameCat.map((r,i)=>{
           const rImg = (r.images && r.images[0]) || r.imageUrl || '';
@@ -1818,6 +1844,7 @@ function renderPdpIfOpen(){
           </div>`;
         }).join('')}
       </div>
+      <div class="side-fade" id="sideFade"></div>
       </div>
     </aside>
     </div>
@@ -1846,6 +1873,7 @@ function renderPdpIfOpen(){
         <div class="footer-line" style="padding-bottom:92px;"><span>© 2026 Daily'put Shop. All rights reserved</span></div>
       </div>
 
+    ${otherCatProducts.length?`<button type="button" class="pdp-more-below" id="pdpMoreBelow">নিচে আরও প্রোডাক্ট <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>`:''}
     <div class="pdp-actions">
       <a class="btn btn-wa" href="${whatsappLink(customMessage)}" target="_blank" title="চ্যাট করুন">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
@@ -1858,9 +1886,17 @@ function renderPdpIfOpen(){
   document.getElementById('pdpBack').onclick = ()=>closeProductDetails(false);
   document.getElementById('pdpFavBtn').onclick = ()=>toggleFavorite(currentProductId);
   document.getElementById('pdpShareBtn').onclick = async ()=>{
-    const shareData = {title: p.name||'', text: (p.name||'')+' — '+fmtTk(disc), url: productUrl};
+    /* রিসেলার লগইন থাকলে শেয়ার লিংকে তার রেফার কোড (?ref=) যুক্ত হয় — ওই লিংক থেকে কেউ অর্ডার করলে ডেলিভারির পর রিসেলার কমিশন পায় */
+    let shareUrl = productUrl;
+    try{
+      if(currentUser && isActiveReseller()){
+        const rc = await ensureReferralCode();
+        if(rc){ const u = new URL(productUrl); u.searchParams.set('ref', rc); shareUrl = u.toString(); }
+      }
+    }catch(e){}
+    const shareData = {title: p.name||'', text: (p.name||'')+' — '+fmtTk(disc), url: shareUrl};
     if(navigator.share){ try{ await navigator.share(shareData); }catch(e){} }
-    else copyReferralText(productUrl);
+    else copyReferralText(shareUrl);
   };
 
   document.getElementById('pdpQtyDec').onclick = ()=>{
@@ -1913,19 +1949,17 @@ function renderPdpIfOpen(){
     });
   }
   if(sideListEl){
-    /* ডেস্কটপে মাউস দিয়ে ধরে উপর-নিচ টানা যাবে (টাচে নিজে থেকেই স্ক্রল হয়) */
+    /* ডেস্কটপে মাউস দিয়ে ধরে উপর-নিচ টানা যাবে (টাচে নিজে থেকেই স্ক্রল হয়) — window-এর listener শুধু টানার সময় থাকে, ছাড়লে সরে যায় */
     let dragging=false, moved=false, startY=0, startTop=0;
-    sideListEl.addEventListener('mousedown', e=>{
-      if(e.button!==0) return;
-      dragging=true; moved=false; startY=e.clientY; startTop=sideListEl.scrollTop;
-    });
-    window.addEventListener('mousemove', e=>{
+    const onMove = e=>{
       if(!dragging) return;
       const dy=e.clientY-startY;
       if(!moved && Math.abs(dy)>5){ moved=true; sideListEl.classList.add('dragging'); }
       if(moved){ sideListEl.scrollTop = startTop-dy; e.preventDefault(); }
-    });
-    const endDrag=()=>{
+    };
+    const endDrag = ()=>{
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', endDrag);
       if(!dragging) return;
       dragging=false;
       if(moved){
@@ -1935,8 +1969,37 @@ function renderPdpIfOpen(){
       }
       sideListEl.classList.remove('dragging');
     };
-    window.addEventListener('mouseup', endDrag);
-    sideListEl.addEventListener('mouseleave', ()=>{ if(dragging && !moved) dragging=false; });
+    sideListEl.addEventListener('mousedown', e=>{
+      if(e.button!==0) return;
+      dragging=true; moved=false; startY=e.clientY; startTop=sideListEl.scrollTop;
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', endDrag);
+    });
+    /* রং/সাইজ বদলালে PDP আবার আঁকা হয় — তখন তালিকার স্ক্রল-অবস্থান ধরে রাখা হয় (প্রোডাক্ট বদলালে শুরু থেকে) */
+    if(window._sidePid === currentProductId) sideListEl.scrollTop = _prevSideTop;
+    window._sidePid = currentProductId;
+    /* নিচে আরও আছে বোঝাতে হালকা ফেড; শেষ পর্যন্ত নামলে ফেড সরে যায় */
+    const sideFade = document.getElementById('sideFade');
+    const updSideFade = ()=>{
+      if(!sideFade) return;
+      const atEnd = sideListEl.scrollTop + sideListEl.clientHeight >= sideListEl.scrollHeight - 4;
+      sideFade.classList.toggle('off', atEnd || sideListEl.scrollHeight <= sideListEl.clientHeight + 4);
+    };
+    sideListEl.addEventListener('scroll', updSideFade, {passive:true});
+    updSideFade(); setTimeout(updSideFade, 400);
+  }
+  /* "নিচে আরও প্রোডাক্ট" বাটন (শুধু ডেস্কটপে): Just For You দেখা গেলে নিজে লুকিয়ে যায়, ক্লিকে নিচে নিয়ে যায় */
+  const moreBelowBtn = document.getElementById('pdpMoreBelow');
+  const lowerEl = document.querySelector('#pdpView .pdp-lower');
+  if(window._pdpMoreIO){ window._pdpMoreIO.disconnect(); window._pdpMoreIO = null; }
+  if(moreBelowBtn && lowerEl){
+    moreBelowBtn.addEventListener('click', ()=>lowerEl.scrollIntoView({behavior:'smooth', block:'start'}));
+    if('IntersectionObserver' in window){
+      window._pdpMoreIO = new IntersectionObserver(entries=>{
+        entries.forEach(en=>moreBelowBtn.classList.toggle('gone', en.isIntersecting));
+      }, {root: document.getElementById('pdpView'), threshold: 0.02});
+      window._pdpMoreIO.observe(lowerEl);
+    }
   }
   const otherGrid = document.getElementById('otherCatGrid');
   if(otherGrid) bindProductCardEvents(otherGrid);
@@ -2941,7 +3004,7 @@ document.getElementById('submitWithdrawBtn').addEventListener('click', async ()=
       status: 'processing',
       createdAt: firebase.database.ServerValue.TIMESTAMP,
       createdAtClient: now,
-      deadline: now + 48*60*60*1000
+      deadline: now + WITHDRAW_WINDOW_MS
     });
     showToast('Withdraw রিকোয়েস্ট পাঠানো হয়েছে');
     showPanel('profilePanel');
@@ -2983,6 +3046,17 @@ document.getElementById('withdrawHistoryBack').addEventListener('click', ()=>{
   if(withdrawCountdownTimer){ clearInterval(withdrawCountdownTimer); withdrawCountdownTimer=null; }
   showPanel('profilePanel');
 });
+/* Withdraw কনফার্মের সময়সীমা: ৭২ ঘণ্টা। আগের (৪৮ ঘণ্টার) রিকোয়েস্টগুলোর ক্ষেত্রেও রিকোয়েস্টের সময় থেকে ৭২ ঘণ্টা ধরা হয় */
+const WITHDRAW_WINDOW_MS = 72*60*60*1000;
+function withdrawDeadline(w){
+  const t = Number((w && (w.createdAtClient || w.createdAt)) || 0);
+  return t ? t + WITHDRAW_WINDOW_MS : Number((w && w.deadline) || 0);
+}
+/* সময় শেষ হয়ে গেলেও এডমিন কনফার্ম না করা পর্যন্ত রিকোয়েস্ট প্রসেসিং অবস্থাতেই থাকে */
+function withdrawCountdownText(deadline){
+  const ms = deadline - Date.now();
+  return ms > 0 ? 'কনফার্ম হতে বাকি: ' + fmtCountdown(ms) : 'সময় শেষ — এডমিনের কনফার্মের অপেক্ষায়';
+}
 function fmtCountdown(ms){
   if(ms<=0) return '০০:০০:০০';
   const totalSec = Math.floor(ms/1000);
@@ -3016,7 +3090,7 @@ function renderWithdrawHistory(){
           মেথড: ${methodLabel} · নাম্বার: ${w.number||'-'}<br>
           রিকোয়েস্টের তারিখ: ${fmtDateBn(w.createdAt||w.createdAtClient)}
         </div>
-        ${!isConfirmed?`<div class="withdraw-countdown" data-deadline="${w.deadline||0}">কনফার্ম হতে বাকি: ${fmtCountdown((w.deadline||0)-Date.now())}</div>`:''}
+        ${!isConfirmed?`<div class="withdraw-countdown ${withdrawDeadline(w)-Date.now()<=0?'expired':''}" data-deadline="${withdrawDeadline(w)}">${withdrawCountdownText(withdrawDeadline(w))}</div>`:''}
       </div>
     `;
   }).join('')}</div>`;
@@ -3024,7 +3098,8 @@ function renderWithdrawHistory(){
 function updateWithdrawCountdowns(){
   document.querySelectorAll('.withdraw-countdown').forEach(el=>{
     const deadline = Number(el.getAttribute('data-deadline')||0);
-    el.textContent = 'কনফার্ম হতে বাকি: ' + fmtCountdown(deadline - Date.now());
+    el.textContent = withdrawCountdownText(deadline);
+    el.classList.toggle('expired', deadline - Date.now() <= 0);
   });
 }
 

@@ -533,6 +533,44 @@ footer{background:var(--ink); color:#fff; padding:24px 14px 20px; text-align:cen
 .zoom-modal{position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:150; display:flex; align-items:center; justify-content:center;}
 .zoom-modal img{max-width:94%; max-height:90%; object-fit:contain;}
 .zoom-close{position:absolute; top:16px; right:16px; width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,.15); color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px;}
+/* ===== (১) ছবি লোড হতে দেরি হলে লেখার বদলে Image আইকন ===== */
+img.pimg{background-color:var(--paper-soft); background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23B8B8B2' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='3'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.6'/%3E%3Cpath d='m21 15-5-5L5 21'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:center; background-size:34% auto;}
+img.pimg.loaded{background-image:none;}
+/* ===== (২) পেমেন্ট মাধ্যম ===== */
+.pay-opts{margin:10px 0 0 !important; gap:8px;}
+.pay-opts .method-opt{padding:11px 4px; font-size:12.5px; line-height:1.3; background:var(--paper);}
+.pay-opts .method-opt.active{background:var(--orange-light);}
+.method-opt.disabled{opacity:.4; pointer-events:none;}
+.pay-field{margin-top:12px;}
+.pay-field label{display:block; font-size:12.5px; font-weight:600; margin-bottom:6px;}
+.pay-field input{width:100%; border:1px solid var(--line); border-radius:10px; padding:11px 12px; font-size:15px; font-family:inherit; background:var(--paper); outline:none;}
+.pay-field input:focus{border-color:var(--orange);}
+.pay-bal-btn{width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:12px; padding:11px 12px; border:1.5px dashed var(--orange); border-radius:10px; background:var(--paper); font-size:13px; font-weight:700; color:var(--orange-dark); text-align:left;}
+.pay-bal-btn small{display:block; font-weight:500; font-size:11px; opacity:.85; margin-top:2px;}
+.pay-bal-btn.on{background:var(--orange); border-style:solid; color:#fff;}
+.pay-bal-btn.off{opacity:.55; pointer-events:none;}
+.pay-live{font-size:12.5px; line-height:1.6; margin-top:10px; color:var(--ink);}
+/* ===== (৩) রিসেলার অর্ডার কার্ড: ডিলিট / ডাউনলোড ===== */
+.order-mini-actions{flex-wrap:wrap;}
+.order-mini-actions .mini-link svg{width:14px; height:14px; vertical-align:-2px; margin-right:4px; fill:none; stroke:currentColor; stroke-width:2;}
+.order-mini-actions .mini-link.danger{color:var(--danger);}
+.order-status-confirmed{background:#E8F3FF; color:#1D6FD1;}
+.order-status-shipped{background:#F1E9FF; color:#6B3FD1;}
+/* ===== (৪) নোটিফিকেশন (ঘন্টা) ===== */
+.notif-bell{position:relative; flex-shrink:0;}
+.notif-dot{position:absolute; top:-3px; right:-3px; min-width:18px; height:18px; padding:0 4px; border-radius:9px; background:var(--orange); color:#fff; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; border:2px solid var(--paper); line-height:1;}
+.nav-item.has-notif::after{content:''; position:absolute; top:7px; left:calc(50% + 7px); width:10px; height:10px; border-radius:50%; background:var(--orange); border:2px solid var(--paper);}
+.notif-card{background:var(--paper); border:1px solid var(--line); border-left:4px solid var(--line); border-radius:var(--radius); padding:12px; margin-bottom:10px; cursor:pointer;}
+.notif-card:active{background:var(--paper-soft);}
+.notif-card.unread{border-left-color:var(--orange); background:var(--orange-light);}
+.notif-card.notice{cursor:default; border-left-color:var(--orange);}
+.notif-top{display:flex; justify-content:space-between; align-items:center; gap:8px;}
+.notif-id{font-weight:700; font-size:13px;}
+.notif-msg{font-size:12.5px; line-height:1.6; margin-top:6px; white-space:pre-wrap; word-break:break-word;}
+.notif-date{font-size:11px; color:var(--ink-soft); margin-top:6px;}
+.notif-tag{font-size:10.5px; font-weight:700; color:#fff; background:var(--orange); padding:3px 8px; border-radius:6px;}
+.notif-notice-title{font-weight:700; font-size:14px; margin-top:8px; word-break:break-word;}
+.notif-empty{text-align:center; color:var(--ink-soft); font-size:12.5px; padding:28px 12px;}
 </style>
 </head>
 <body>
@@ -711,6 +749,7 @@ footer{background:var(--ink); color:#fff; padding:24px 14px 20px; text-align:cen
   <div class="panel-head">
     <button class="icon-btn" data-close-panel><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
     <div class="panel-title" id="profilePanelTitle">Profile</div>
+    <button class="icon-btn notif-bell hidden" id="profileBellBtn" aria-label="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="notif-dot hidden" id="profileBellDot">0</span></button>
     <div class="dot-menu-wrap hidden" id="profileDotMenuWrap">
       <button class="icon-btn" id="profileDotMenuBtn"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
       <div class="dot-menu hidden" id="profileDotMenu"></div>
@@ -819,6 +858,14 @@ footer{background:var(--ink); color:#fff; padding:24px 14px 20px; text-align:cen
 </div>
 
 <!-- ORDER ID LIST PANEL (reseller) -->
+<div class="panel hidden" id="notifPanel">
+  <div class="panel-head">
+    <button class="icon-btn" id="notifBack"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+    <div class="panel-title">Notifications</div>
+  </div>
+  <div id="notifBody" class="profile-body"></div>
+</div>
+
 <div class="panel hidden" id="resellerOrdersPanel">
   <div class="panel-head">
     <button class="icon-btn" id="resellerOrdersBack"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
@@ -850,13 +897,12 @@ footer{background:var(--ink); color:#fff; padding:24px 14px 20px; text-align:cen
       <div class="sum-row"><span>Product Total</span><span id="ordSumProduct">৳0</span></div>
       <div class="sum-row"><span id="ordSumDeliveryLbl">Delivery Charge</span><span id="ordSumDelivery">-</span></div>
       <div class="sum-row total"><span>Grand Total</span><span id="ordSumGrand">৳0</span></div>
-      <div class="sum-row ord-adv-row hidden"><span>অগ্রিম (আগে দিতে হবে)</span><span id="ordSumAdvance">৳0</span></div>
+      <div class="sum-row ord-adv-row hidden"><span>অগ্রিম পেমেন্ট</span><span id="ordSumAdvance">৳0</span></div>
       <div class="sum-row ord-adv-row hidden"><span>ডেলিভারির সময় দিতে হবে</span><span id="ordSumDue">৳0</span></div>
     </div>
-    <div class="adv-box hidden" id="advanceBox">
-      <div class="adv-title">অগ্রিম পেমেন্ট প্রয়োজন</div>
+    <div class="adv-box" id="advanceBox">
+      <div class="adv-title">পেমেন্ট মাধ্যম</div>
       <div id="advanceBody"></div>
-      <div class="form-field" style="margin:12px 0 0;"><label>যে নাম্বার থেকে টাকা পাঠিয়েছেন *</label><input type="tel" id="ordAdvanceFrom" placeholder="01XXXXXXXXX" maxlength="11" inputmode="numeric"></div>
     </div>
     <div class="order-agree-box hidden" id="orderAgreeBox">
       <label class="order-agree-row">
@@ -937,6 +983,19 @@ let favorites = JSON.parse(localStorage.getItem('dps_favorites') || '[]');
 let currentProductId = null;
 let currentColorSelection = {};
 let currentSizeSelection = {};
+document.addEventListener('load', (e)=>{
+  const t = e.target;
+  if(t && t.tagName === 'IMG' && t.classList.contains('pimg')) t.classList.add('loaded');
+}, true);
+const ORDER_STATUS_UI = {
+  pending:{cls:'order-status-pending', label:'পেন্ডিং'},
+  confirmed:{cls:'order-status-confirmed', label:'কনফার্মড'},
+  processing:{cls:'order-status-processing', label:'প্রসেসিং'},
+  shipped:{cls:'order-status-shipped', label:'শিপিং'},
+  completed:{cls:'order-status-completed', label:'সম্পন্ন'},
+  delivered:{cls:'order-status-completed', label:'ডেলিভার্ড'},
+  cancelled:{cls:'order-status-cancelled', label:'বাতিল'}
+};
 function safeCacheSet(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){} }
 
 /* ===================== REFERRAL (রেফার সিস্টেম) ===================== */
@@ -1644,7 +1703,7 @@ function productCardHtml(p, idx){
       <button class="fav-btn ${isFav?'active':''}" data-fav-toggle="${p.id}">
         <svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
       </button>
-      ${img?`<img src="${img}" ${(idx!==undefined && idx<6)?'loading="eager" fetchpriority="high"':'loading="lazy"'} decoding="async" alt="${p.name}">`:''}
+      ${img?`<img class="pimg" src="${img}" ${(idx!==undefined && idx<6)?'loading="eager" fetchpriority="high"':'loading="lazy"'} decoding="async" alt="">`:''}
     </div>
     <div class="prod-body">
       <div class="prod-name">${p.name||''}</div>
@@ -1661,7 +1720,7 @@ function searchResultCardHtml(p){
   const {orig,disc} = computeDiscount(baseView(p));
   const img = (p.images && p.images[0]) || p.imageUrl || '';
   return `<div class="search-item" data-prod-open="${p.id}">
-    <div class="search-item-img">${img?`<img src="${img}" loading="lazy" alt="${p.name}">`:''}</div>
+    <div class="search-item-img">${img?`<img class="pimg" src="${img}" loading="lazy" alt="">`:''}</div>
     <div class="search-item-info">
       <div class="search-item-name">${p.name||''}</div>
       <div class="search-item-price">${fmtTk(disc)}${orig>disc?`<span class="search-item-old">${fmtTk(orig)}</span>`:''}</div>
@@ -1815,7 +1874,7 @@ function renderPdpIfOpen(){
     <div class="pdp-left">
     <div class="pdp-gallery">
       <div class="pdp-track" id="pdpTrack">
-        ${images.length? images.map(src=>`<div class="pdp-slide"><img src="${src}" data-zoom="${src}"></div>`).join('') : `<div class="pdp-slide"></div>`}
+        ${images.length? images.map(src=>`<div class="pdp-slide"><img class="pimg" src="${src}" data-zoom="${src}" alt=""></div>`).join('') : `<div class="pdp-slide"></div>`}
       </div>
       ${images.length>1?`<div class="pdp-dots" id="pdpDots">${images.map((_,i)=>`<span class="${i===0?'active':''}"></span>`).join('')}</div>`:''}
     </div>
@@ -1897,7 +1956,7 @@ function renderPdpIfOpen(){
           const rImg = (r.images && r.images[0]) || r.imageUrl || '';
           const {disc: rDisc} = computeDiscount(baseView(r));
           return `<div class="related-card" data-prod-open="${r.id}">
-            <div class="r-img"><img src="${rImg}" loading="lazy"></div>
+            <div class="r-img"><img class="pimg" src="${rImg}" loading="lazy" alt=""></div>
             <div class="r-body">
               <div class="r-name">${r.name}</div>
               <div class="r-price">${fmtTk(rDisc)}</div>
@@ -1916,7 +1975,7 @@ function renderPdpIfOpen(){
           const rImg = (r.images && r.images[0]) || r.imageUrl || '';
           const rv = computeDiscount(baseView(r));
           return `<div class="side-item" data-prod-open="${r.id}">
-            <div class="side-thumb">${rImg?`<img src="${rImg}" loading="lazy" alt="" draggable="false">`:''}</div>
+            <div class="side-thumb">${rImg?`<img class="pimg" src="${rImg}" loading="lazy" alt="" draggable="false">`:''}</div>
             <div class="side-info">
               <div class="side-name">${r.name||''}</div>
               <div class="side-price">${fmtTk(rv.disc)}${rv.orig>rv.disc?`<span class="old">${fmtTk(rv.orig)}</span>`:''}</div>
@@ -2257,7 +2316,7 @@ function renderCart(){
     productTotal += sub;
     const img = (p.images && p.images[0]) || p.imageUrl || '';
     return `<div class="cart-item">
-      <img src="${img}">
+      <img class="pimg" src="${img}" alt="">
       <div class="cart-item-info">
         <div class="cart-item-name">${p.name}</div>
         <div class="cart-item-meta">${p.code}${item.color?' · '+item.color:''}${item.size?' · '+item.size:''} · ${fmtTk(disc)}</div>
@@ -2433,40 +2492,106 @@ function computeAdvance(){
   const bulk = (PAYMENT_SETTINGS.bulkMin > 0 && PAYMENT_SETTINGS.bulkAmount > 0 && total >= PAYMENT_SETTINGS.bulkMin) ? PAYMENT_SETTINGS.bulkAmount : 0;
   return {amount: Math.max(prodAdv, bulk), prodAdv, bulk, names, total};
 }
-let advSelectedMethod = null;
+/* ===== পেমেন্ট মাধ্যম: ক্যাশ অন ডেলিভারি (ডিফল্ট) / বিকাশ / নগদ — রিসেলার হলে Available Balance থেকেও কাটা যাবে ===== */
+const payState = {method:'cod', mobileAmt:'', fromNum:'', useBalance:false, balAmt:''};
+let payGrand = 0;
+function resetPayState(){ payState.method='cod'; payState.mobileAmt=''; payState.fromNum=''; payState.useBalance=false; payState.balAmt=''; }
+function payInt(v){ return Math.max(0, Math.floor(Number(String(v==null?'':v).replace(/[^0-9]/g,''))||0)); }
+function computePay(grand){
+  const isMobile = payState.method==='bkash' || payState.method==='nagad';
+  const mobile = isMobile ? payInt(payState.mobileAmt) : 0;
+  const bal = (isMobile && payState.useBalance && isActiveReseller()) ? payInt(payState.balAmt) : 0;
+  return {isMobile, mobile, bal, total: mobile+bal, grand};
+}
+function payMaxBalance(){
+  const p = computePay(payGrand);
+  return Math.max(0, Math.min(Math.floor(getWithdrawableBalance()), payGrand - p.mobile));
+}
+function refreshPaySummary(){
+  const p = computePay(payGrand);
+  const a = computeAdvance();
+  const banner = document.getElementById('codBanner');
+  const due = Math.max(0, payGrand - p.total);
+  document.querySelectorAll('.ord-adv-row').forEach(r=>r.classList.toggle('hidden', !(p.total>0)));
+  document.getElementById('ordSumAdvance').textContent = fmtTk(p.total);
+  document.getElementById('ordSumDue').textContent = fmtTk(due);
+  if(banner) banner.textContent = p.total>0
+    ? 'অগ্রিম '+fmtTk(p.total)+' বাদ দিয়ে বাকি '+fmtTk(due)+' প্রোডাক্ট হাতে পেয়ে ডেলিভারি ম্যানকে পরিশোধ করুন।'
+    : banner.getAttribute('data-default');
+  const live = document.getElementById('payLive');
+  if(live){
+    const warns = [];
+    if(p.total > payGrand) warns.push('অগ্রিমের পরিমাণ মোট টাকার ('+fmtTk(payGrand)+') বেশি হতে পারবে না');
+    if(p.bal > Math.floor(getWithdrawableBalance())) warns.push('Available Balance-এর চেয়ে বেশি কাটা যাবে না');
+    if(a.amount > 0 && p.total < a.amount) warns.push('কমপক্ষে '+fmtTk(a.amount)+' অগ্রিম দিতে হবে');
+    if(warns.length) live.innerHTML = '<span style="color:var(--danger); font-weight:600;">'+warns.join('<br>')+'</span>';
+    else if(p.total>0) live.innerHTML = 'মোট অগ্রিম: <b>'+fmtTk(p.total)+'</b>'+(p.bal>0?' (বিকাশ/নগদ '+fmtTk(p.mobile)+' + ব্যালেন্স '+fmtTk(p.bal)+')':'')+' — ডেলিভারির সময় দিতে হবে <b>'+fmtTk(due)+'</b>';
+    else live.innerHTML = '';
+  }
+}
 function renderAdvanceBox(grand){
   const box = document.getElementById('advanceBox');
   if(!box) return;
+  payGrand = grand;
   const a = computeAdvance();
-  const banner = document.getElementById('codBanner');
-  const advRows = document.querySelectorAll('.ord-adv-row');
-  if(a.amount <= 0){
-    box.classList.add('hidden');
-    advRows.forEach(r=>r.classList.add('hidden'));
-    if(banner) banner.textContent = banner.getAttribute('data-default');
-    return;
+  const forced = a.amount > 0;
+  const labels = {bkash:'বিকাশ', nagad:'নগদ'};
+  const numbers = {bkash:PAYMENT_SETTINGS.bkash, nagad:PAYMENT_SETTINGS.nagad};
+  /* এডমিনের সেট করা অগ্রিম বাধ্যতামূলক হলে ক্যাশ অন ডেলিভারি বন্ধ থাকবে */
+  if(forced && payState.method==='cod'){
+    payState.method = (PAYMENT_SETTINGS.bkash || !PAYMENT_SETTINGS.nagad) ? 'bkash' : 'nagad';
+    if(!payInt(payState.mobileAmt)) payState.mobileAmt = String(a.amount);
   }
-  box.classList.remove('hidden');
-  advRows.forEach(r=>r.classList.remove('hidden'));
-  const byProduct = a.prodAdv >= a.bulk && a.prodAdv > 0;
-  const reason = byProduct
-    ? 'এই প্রোডাক্ট অর্ডার করতে আগে অগ্রিম দিতে হবে: '+a.names.join(', ')
-    : fmtTk(PAYMENT_SETTINGS.bulkMin)+' বা তার বেশি মূল্যের অর্ডারে আগে অগ্রিম দিতে হয়';
-  const nums = [];
-  if(PAYMENT_SETTINGS.bkash) nums.push(['bkash', 'বিকাশ', PAYMENT_SETTINGS.bkash]);
-  if(PAYMENT_SETTINGS.nagad) nums.push(['nagad', 'নগদ', PAYMENT_SETTINGS.nagad]);
-  /* যেটায় ক্লিক করবে শুধু সেই মাধ্যমের নাম্বার দেখাবে; আগে কিছু বাছা না থাকলে প্রথমটা ডিফল্ট */
-  if(!nums.some(n=>n[0]===advSelectedMethod)) advSelectedMethod = nums.length ? nums[0][0] : null;
-  const selNum = nums.find(n=>n[0]===advSelectedMethod);
-  document.getElementById('advanceBody').innerHTML = `
-    <div class="adv-msg">${reason}।<br>অনুগ্রহ করে <b>${fmtTk(a.amount)}</b> নিচের নাম্বারে (সেন্ড মানি) পাঠিয়ে, যে নাম্বার থেকে পাঠিয়েছেন সেটা নিচের ঘরে লিখুন।</div>
-    ${nums.length>1 ? `<div class="method-opts" id="advMethodOpts" style="margin:12px 0 0;">${nums.map(n=>`<div class="method-opt ${n[0]===advSelectedMethod?'active':''}" data-adv-method="${n[0]}">${n[1]}</div>`).join('')}</div>` : ''}
-    ${selNum ? `<div class="adv-num"><span>${selNum[1]}: <b>${selNum[2]}</b></span><button type="button" class="adv-copy" data-adv-copy="${selNum[2]}">Copy</button></div>` : `<div class="adv-msg" style="margin-top:8px;">পেমেন্ট নাম্বারের জন্য আমাদের সাথে যোগাযোগ করুন।</div>`}`;
-  document.querySelectorAll('[data-adv-method]').forEach(el=>el.addEventListener('click', ()=>{ advSelectedMethod = el.getAttribute('data-adv-method'); renderAdvanceBox(grand); }));
-  document.querySelectorAll('[data-adv-copy]').forEach(b=>b.addEventListener('click', ()=>copyReferralText(b.getAttribute('data-adv-copy'))));
-  document.getElementById('ordSumAdvance').textContent = fmtTk(a.amount);
-  document.getElementById('ordSumDue').textContent = fmtTk(Math.max(0, grand - a.amount));
-  if(banner) banner.textContent = 'অগ্রিম '+fmtTk(a.amount)+' পাঠানোর পর বাকি টাকা প্রোডাক্ট হাতে পেয়ে ডেলিভারি ম্যানকে পরিশোধ করুন।';
+  const m = payState.method;
+  const isMobile = m !== 'cod';
+  const chip = (key, text, disabled)=>`<div class="method-opt ${m===key?'active':''} ${disabled?'disabled':''}" data-pay-method="${key}">${text}</div>`;
+  let body = `<div class="method-opts pay-opts">${chip('cod','ক্যাশ অন ডেলিভারি',forced)}${chip('bkash','বিকাশ',false)}${chip('nagad','নগদ',false)}</div>`;
+  if(!isMobile){
+    body += `<div class="adv-msg" style="margin-top:10px;">সম্পূর্ণ টাকা প্রোডাক্ট হাতে পেয়ে ডেলিভারি ম্যানকে পরিশোধ করুন। আগে কিছু টাকা অগ্রিম দিতে চাইলে <b>বিকাশ</b> বা <b>নগদ</b> বেছে নিন।</div>`;
+  } else {
+    const byProduct = a.prodAdv >= a.bulk && a.prodAdv > 0;
+    const reason = !forced ? '' : (byProduct
+      ? 'এই প্রোডাক্ট অর্ডার করতে আগে অগ্রিম দিতে হবে: '+a.names.join(', ')+' (কমপক্ষে '+fmtTk(a.amount)+')'
+      : fmtTk(PAYMENT_SETTINGS.bulkMin)+' বা তার বেশি মূল্যের অর্ডারে আগে অগ্রিম দিতে হয় (কমপক্ষে '+fmtTk(a.amount)+')');
+    const num = numbers[m];
+    body += `<div class="adv-msg" style="margin-top:10px;">${reason?reason+'।<br>':''}নিচের <b>${labels[m]}</b> নাম্বারে (সেন্ড মানি) টাকা পাঠিয়ে, কত টাকা পাঠিয়েছেন এবং যে নাম্বার থেকে পাঠিয়েছেন তা নিচের ঘরে লিখুন।</div>`;
+    body += num
+      ? `<div class="adv-num"><span>${labels[m]}: <b>${num}</b></span><button type="button" class="adv-copy" data-adv-copy="${num}">Copy</button></div>`
+      : `<div class="adv-msg" style="margin-top:8px;">পেমেন্ট নাম্বারের জন্য আমাদের সাথে যোগাযোগ করুন।</div>`;
+    body += `<div class="pay-field"><label>কত টাকা পাঠিয়েছেন (৳)</label><input type="tel" inputmode="numeric" id="payMobileAmt" value="${payState.mobileAmt||''}" placeholder="যেমন: 200"></div>`;
+    body += `<div class="pay-field"><label>যে নাম্বার থেকে টাকা পাঠিয়েছেন</label><input type="tel" inputmode="numeric" id="ordAdvanceFrom" value="${payState.fromNum||''}" placeholder="01XXXXXXXXX" maxlength="11"></div>`;
+    if(isActiveReseller()){
+      const usable = Math.floor(getWithdrawableBalance());
+      body += `<button type="button" class="pay-bal-btn ${payState.useBalance?'on':''} ${usable<=0?'off':''}" id="payBalToggle"><span>Available Balance থেকে মাইনাস করুন<small>উপলব্ধ ব্যালেন্স: ${fmtTk(usable)}</small></span><span>${payState.useBalance?'✓ চালু':'চালু করুন'}</span></button>`;
+      if(payState.useBalance){
+        body += `<div class="pay-field"><label>ব্যালেন্স থেকে কত টাকা কাটবেন (৳)</label><div style="display:flex; gap:8px; align-items:center;"><input type="tel" inputmode="numeric" id="payBalAmt" value="${payState.balAmt||''}" placeholder="0"><button type="button" class="adv-copy" id="payBalMax" style="white-space:nowrap;">সর্বোচ্চ</button></div></div>`;
+      }
+    }
+  }
+  body += `<div class="pay-live" id="payLive"></div>`;
+  document.getElementById('advanceBody').innerHTML = body;
+
+  box.querySelectorAll('[data-pay-method]').forEach(el=>el.addEventListener('click', ()=>{
+    if(el.classList.contains('disabled')) return;
+    payState.method = el.getAttribute('data-pay-method');
+    renderAdvanceBox(payGrand);
+  }));
+  box.querySelectorAll('[data-adv-copy]').forEach(b=>b.addEventListener('click', ()=>copyReferralText(b.getAttribute('data-adv-copy'))));
+  const mAmt = document.getElementById('payMobileAmt');
+  if(mAmt) mAmt.addEventListener('input', (e)=>{ e.target.value = e.target.value.replace(/[^0-9]/g,''); payState.mobileAmt = e.target.value; refreshPaySummary(); });
+  const fromEl = document.getElementById('ordAdvanceFrom');
+  if(fromEl) fromEl.addEventListener('input', (e)=>{ e.target.value = e.target.value.replace(/[^0-9]/g,'').slice(0,11); payState.fromNum = e.target.value; });
+  const balToggle = document.getElementById('payBalToggle');
+  if(balToggle) balToggle.addEventListener('click', ()=>{
+    payState.useBalance = !payState.useBalance;
+    if(payState.useBalance && !payInt(payState.balAmt)) payState.balAmt = String(payMaxBalance());
+    renderAdvanceBox(payGrand);
+  });
+  const balAmt = document.getElementById('payBalAmt');
+  if(balAmt) balAmt.addEventListener('input', (e)=>{ e.target.value = e.target.value.replace(/[^0-9]/g,''); payState.balAmt = e.target.value; refreshPaySummary(); });
+  const balMax = document.getElementById('payBalMax');
+  if(balMax) balMax.addEventListener('click', ()=>{ payState.balAmt = String(payMaxBalance()); renderAdvanceBox(payGrand); });
+  refreshPaySummary();
 }
 
 /* ===================== ORDER ===================== */
@@ -2528,6 +2653,7 @@ function openOrderPanel(){
       });
     }
   }
+  resetPayState();
   updateOrderSummary();
   renderOrderItems();
   /* রিসেলার অর্ডার করার সময় "I agree" চেকবক্স টিক না দেওয়া পর্যন্ত অর্ডার বাটন নিষ্ক্রিয় থাকবে —
@@ -2562,7 +2688,7 @@ function renderOrderItems(){
     const disc = itemUnitPrice(item,p);
     const img = (p.images && p.images[0]) || p.imageUrl || '';
     return `<div class="cart-item">
-      <img src="${img}">
+      <img class="pimg" src="${img}" alt="">
       <div class="cart-item-info">
         <div class="cart-item-name">${p.name}</div>
         <div class="cart-item-meta">${p.code}${item.color?' · '+item.color:''}${item.size?' · '+item.size:''} · ${fmtTk(disc)}</div>
@@ -2614,8 +2740,15 @@ document.getElementById('placeOrderBtn').addEventListener('click', async ()=>{
   if(!/^[0-9]{11}$/.test(phone)){ showToast('সঠিক ১১ ডিজিটের মোবাইল নাম্বার দিন'); return; }
   if(!BD_LOCATIONS[district]){ showToast('তালিকা থেকে সঠিক জেলা নির্বাচন করুন'); return; }
   const _adv = computeAdvance();
-  const _advFrom = (document.getElementById('ordAdvanceFrom').value || '').trim();
-  if(_adv.amount > 0 && !/^[0-9]{11}$/.test(_advFrom)){ showToast('যে নাম্বার থেকে অগ্রিম টাকা পাঠিয়েছেন সেই ১১ ডিজিটের নাম্বার দিন'); return; }
+  const _pay = computePay(cartProductTotal() + calcDelivery(district));
+  const _advFrom = String(payState.fromNum || '').trim();
+  if(_adv.amount > 0 && _pay.total < _adv.amount){ showToast('কমপক্ষে '+fmtTk(_adv.amount)+' অগ্রিম দিতে হবে'); return; }
+  if(_pay.isMobile){
+    if(_pay.total <= 0){ showToast('কত টাকা অগ্রিম দিচ্ছেন তা লিখুন (অথবা ক্যাশ অন ডেলিভারি বেছে নিন)'); return; }
+    if(_pay.mobile > 0 && !/^[0-9]{11}$/.test(_advFrom)){ showToast('যে নাম্বার থেকে টাকা পাঠিয়েছেন সেই ১১ ডিজিটের নাম্বার দিন'); return; }
+    if(_pay.total > _pay.grand){ showToast('অগ্রিমের পরিমাণ মোট টাকার বেশি হতে পারবে না'); return; }
+    if(_pay.bal > Math.floor(getWithdrawableBalance())){ showToast('Available Balance-এর চেয়ে বেশি কাটা যাবে না'); return; }
+  }
   /* ডাবল অর্ডার ঠেকানো: ক্লিক চলার সময় আর কোনো ক্লিক ধরা হবে না, আর একই কার্ট/নাম্বারের জন্য
      একই Order ID ব্যবহার হবে — নেট স্লো থাকলে বারবার চাপলেও একটাই অর্ডার তৈরি হবে */
   if(window._orderSubmitting) return;
@@ -2664,9 +2797,12 @@ document.getElementById('placeOrderBtn').addEventListener('click', async ()=>{
     resellerUid: resellerActive ? currentUser.uid : null,
     totalProfit: resellerActive ? totalProfit : 0
   };
-  if(_adv.amount > 0){
-    orderData.advanceAmount = _adv.amount;
-    orderData.advanceFrom = _advFrom;
+  orderData.paymentMethod = _pay.isMobile ? payState.method : 'cod';
+  if(_pay.isMobile && _pay.total > 0){
+    orderData.advanceAmount = _pay.total;          /* মোট অগ্রিম (বিকাশ/নগদ + ব্যালেন্স) */
+    orderData.advanceMethod = payState.method;
+    if(_pay.mobile > 0){ orderData.advanceFrom = _advFrom; orderData.advanceMobileAmount = _pay.mobile; }
+    if(_pay.bal > 0){ orderData.balanceAdvance = _pay.bal; }   /* এডমিন কনফার্ম করলে Available Balance থেকে কাটা হবে */
   }
   if(_ref){
     orderData.referrerUid = _ref.uid;
@@ -2693,7 +2829,7 @@ document.getElementById('placeOrderBtn').addEventListener('click', async ()=>{
       }
     }
     window._pendingOrder = null;
-    document.getElementById('ordAdvanceFrom').value = '';
+    resetPayState();
     cart = {}; saveCart();
     showToast('আপনার অর্ডার সফলভাবে সম্পন্ন হয়েছে!');
     closeAllPanels();
@@ -2835,6 +2971,7 @@ auth.onAuthStateChanged(async (user)=>{
     db.ref('users/'+user.uid).on('value', s=>{
       currentUserProfile = s.val();
       renderProducts();
+      refreshNotifications();
       if(!document.getElementById('profilePanel').classList.contains('hidden')) renderProfilePanel();
     });
     listenUserOrders(user.uid);
@@ -2843,6 +2980,7 @@ auth.onAuthStateChanged(async (user)=>{
     currentUserProfile = null;
     userOrdersCache = [];
     resellerOrdersCache = [];
+    notifReset();
     resellerProfitCache = [];
     withdrawHistoryCache = [];
     referralCountCache = 0;
@@ -2873,6 +3011,8 @@ function listenUserOrders(uid){
     const val = snap.val() || {};
     resellerOrdersCache = Object.values(val).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
     processResellerOrderSideEffects(uid);
+    notifFlags.orders = true;
+    refreshNotifications();
     if(!document.getElementById('profilePanel').classList.contains('hidden')) renderProfilePanel();
     if(!document.getElementById('paymentSummaryPanel').classList.contains('hidden')) renderPaymentSummary();
   });
@@ -2881,6 +3021,15 @@ function listenUserOrders(uid){
     resellerProfitCache = Object.entries(val).map(([id,v])=>({id,...v})).sort((a,b)=>(b.date||0)-(a.date||0));
     if(!document.getElementById('profilePanel').classList.contains('hidden')) renderProfilePanel();
   });
+  /* এডমিন প্যানেল থেকে পাঠানো নোটিশ (শেষ ৩০টা) */
+  if(!window._noticesListening){
+    window._noticesListening = true;
+    db.ref('notices').limitToLast(30).on('value', snap=>{
+      noticesCache = snap.val() || {};
+      notifFlags.notices = true;
+      refreshNotifications();
+    }, ()=>{ notifFlags.notices = true; refreshNotifications(); });
+  }
 }
 
 /* Interim client-side balance adjustments (until Admin Panel/cloud functions are connected) */
@@ -3055,8 +3204,13 @@ function getConfirmedWithdrawTotal(){
 }
 /* আসলে উত্তোলনযোগ্য ব্যালেন্স = Admin-এর হিসাব করা Available Balance বিয়োগ যা ইতিমধ্যে Pending
    অবস্থায় আছে (একই টাকা দিয়ে দুইবার Withdraw রিকোয়েস্ট পাঠানো ঠেকাতে) */
+/* অর্ডারে Available Balance থেকে অগ্রিম দেওয়া হয়েছে কিন্তু এডমিন এখনো কনফার্ম করেননি (তাই ব্যালেন্স থেকে কাটা হয়নি) —
+   একই টাকা দুইবার খরচ ঠেকাতে এই অংশটা আগেই বাদ ধরা হয় */
+function getReservedBalanceAdvance(){
+  return resellerOrdersCache.reduce((sum,o)=> (o && Number(o.balanceAdvance)>0 && !o.balanceAdvanceDeducted && o.status!=='cancelled') ? sum + Number(o.balanceAdvance) : sum, 0);
+}
 function getWithdrawableBalance(){
-  return Math.max(0, Number(resellerBalanceCache.availableBalance||0) - getPendingWithdrawTotal());
+  return Math.max(0, Number(resellerBalanceCache.availableBalance||0) - getPendingWithdrawTotal() - getReservedBalanceAdvance());
 }
 function openWithdrawPanel(){
   withdrawSelectedMethod = null;
@@ -3249,6 +3403,7 @@ document.getElementById('paymentSummaryBack').addEventListener('click', ()=>show
 
 /* ===================== PROFILE DOT MENU (তিনটা ডট) ===================== */
 function renderProfileDotMenu(){
+  updateBellVisibility();
   const wrap = document.getElementById('profileDotMenuWrap');
   const menu = document.getElementById('profileDotMenu');
   if(!currentUser || !currentUser.emailVerified){ wrap.classList.add('hidden'); return; }
@@ -3323,17 +3478,13 @@ function openOrderDetailModal(orderId){
   const isReseller = isActiveReseller();
   const o = resellerOrdersCache.find(x=>x.orderId===orderId) || userOrdersCache.find(x=>x.orderId===orderId);
   if(!o) return;
-  const statusMap = {
-    pending:{cls:'order-status-pending', label:'পেন্ডিং'},
-    processing:{cls:'order-status-processing', label:'প্রসেসিং'},
-    completed:{cls:'order-status-completed', label:'সম্পন্ন'},
-    delivered:{cls:'order-status-completed', label:'ডেলিভার্ড'},
-    cancelled:{cls:'order-status-cancelled', label:'বাতিল'}
-  };
+  const statusMap = ORDER_STATUS_UI;
   const st = statusMap[o.status] || statusMap.pending;
   const CANCEL_REASON_LABEL = {
     reseller_fault: 'কাস্টমার প্রোডাক্টটি রিসিভ করেননি / রিটার্ন হয়েছে',
-    out_of_stock: 'প্রোডাক্টটি স্টকে না থাকায় বাতিল করা হয়েছে'
+    out_of_stock: 'প্রোডাক্টটি স্টকে না থাকায় বাতিল করা হয়েছে',
+    not_received: 'কাস্টমার প্রোডাক্টটি রিসিভ করেননি',
+    plain: 'অর্ডারটি বাতিল করা হয়েছে'
   };
   const productsHtml = (o.items||[]).map(it=>`
     <div class="detail-product-row">
@@ -3364,6 +3515,7 @@ function openOrderDetailModal(orderId){
       <div class="detail-row"><span class="lbl">Product Price</span><span class="val">${fmtTk(o.productTotal)}</span></div>
       <div class="detail-row"><span class="lbl">Delivery Charge</span><span class="val">${fmtTk(o.deliveryCharge)}</span></div>
       <div class="detail-row"><span class="lbl">Total (COD)</span><span class="val">${fmtTk(o.grandTotal)}</span></div>
+      ${Number(o.advanceAmount)>0?`<div class="detail-row"><span class="lbl">অগ্রিম পেমেন্ট</span><span class="val">${fmtTk(o.advanceAmount)}</span></div><div class="detail-row"><span class="lbl">ডেলিভারির সময় দিতে হবে</span><span class="val">${fmtTk(Math.max(0,Number(o.grandTotal||0)-Number(o.advanceAmount)))}</span></div>`:''}
 
       ${showProfit?`
       <div class="detail-profit-box">
@@ -3496,15 +3648,12 @@ function verifyBoxHtml(){
   `;
 }
 function orderMiniHtml(o, allowEdit){
-  const statusMap = {
-    pending:{cls:'order-status-pending', label:'পেন্ডিং'},
-    processing:{cls:'order-status-processing', label:'প্রসেসিং'},
-    completed:{cls:'order-status-completed', label:'সম্পন্ন'},
-    delivered:{cls:'order-status-completed', label:'ডেলিভার্ড'},
-    cancelled:{cls:'order-status-cancelled', label:'বাতিল'}
-  };
+  const statusMap = ORDER_STATUS_UI;
   const st = statusMap[o.status] || statusMap.pending;
-  const canEdit = allowEdit && o.status==='pending';
+  /* শুধু রিসেলারদের জন্য (allowEdit = রিসেলার): কনফার্মের আগে এডিট + ডিলিট + ডাউনলোড; কনফার্মের পর শুধু ডাউনলোড */
+  const isPendingOrder = (!o.status || o.status==='pending');
+  const canEdit = allowEdit && isPendingOrder;
+  const canDownload = allowEdit && o.status!=='cancelled';
   /* ডেলিভারি হয়ে যাওয়ার পর, অর্ডারের কোনো আইটেমের Warranty থাকলে (এডমিন প্যানেল থেকে সেট করা)
      রিটার্ন/চেঞ্জ অপশন দেখানো হবে — অলরেডি রিটার্ন রিকোয়েস্ট করা থাকলে সেটার স্ট্যাটাস দেখাবে। */
   const hasWarrantyItem = o.status==='delivered' && (o.items||[]).some(it=> allProducts[it.productId] && allProducts[it.productId].warranty);
@@ -3517,7 +3666,8 @@ function orderMiniHtml(o, allowEdit){
       <div class="order-mini-meta">${o.name||''}${o.name?' · ':''}${fmtTk(o.grandTotal)} · ${(o.items||[]).length} আইটেম · ডেলিভারি চার্জ ${fmtTk(o.deliveryCharge)}</div>
       <div class="order-mini-actions">
         ${o.trackingLink?`<a href="${o.trackingLink}" target="_blank" class="mini-link">Order Tracking করুন →</a>`:''}
-        ${canEdit?`<button class="mini-link" data-edit-order="${o.orderId}">এডিট করুন</button>`:''}
+        ${canEdit?`<button class="mini-link" data-edit-order="${o.orderId}">এডিট করুন</button><button class="mini-link danger" data-delete-order="${o.orderId}"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>ডিলিট করুন</button>`:''}
+        ${canDownload?`<button class="mini-link" data-download-order="${o.orderId}" title="কাস্টমারকে দেওয়ার ইনভয়েস ছবি ডাউনলোড"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>ডাউনলোড</button>`:''}
         ${hasWarrantyItem?(o.returnRequested?`<span class="mini-link" style="color:var(--ink-soft);">রিটার্ন/চেঞ্জ রিকোয়েস্ট পাঠানো হয়েছে</span>`:`<button class="mini-link" data-return-order="${o.orderId}">রিটার্ন / চেঞ্জ করুন</button>`):''}
       </div>
     </div>
@@ -3526,6 +3676,12 @@ function orderMiniHtml(o, allowEdit){
 function bindOrderMiniActions(container){
   container.querySelectorAll('[data-edit-order]').forEach(btn=>{
     btn.addEventListener('click', (e)=>{ e.stopPropagation(); openOrderEditModal(btn.getAttribute('data-edit-order')); });
+  });
+  container.querySelectorAll('[data-delete-order]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{ e.stopPropagation(); handleResellerDeleteOrder(btn.getAttribute('data-delete-order')); });
+  });
+  container.querySelectorAll('[data-download-order]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{ e.stopPropagation(); downloadInvoice(btn.getAttribute('data-download-order')); });
   });
   container.querySelectorAll('[data-return-order]').forEach(btn=>{
     btn.addEventListener('click', (e)=>{ e.stopPropagation(); handleReturnRequest(btn.getAttribute('data-return-order')); });
@@ -3537,6 +3693,167 @@ function bindOrderMiniActions(container){
     el.addEventListener('click', (e)=>e.stopPropagation());
   });
 }
+/* রিসেলার নিজের অর্ডার ডিলিট করতে পারবে শুধু এডমিন কনফার্ম করার আগ পর্যন্ত (পেন্ডিং থাকলে) */
+async function handleResellerDeleteOrder(orderId){
+  const o = resellerOrdersCache.find(x=>x.orderId===orderId);
+  if(!o || !currentUser) return;
+  if(o.status && o.status!=='pending'){ showToast('কনফার্ম হয়ে যাওয়া অর্ডার ডিলিট করা যায় না'); return; }
+  if(!confirm('অর্ডার #'+orderId+' ডিলিট করতে চান?')) return;
+  try{
+    /* ডিলিটের ঠিক আগে সার্ভার থেকে স্ট্যাটাস আবার দেখা — এর মধ্যে এডমিন কনফার্ম করে ফেললে আটকে যাবে */
+    const st = (await db.ref('orders/'+orderId+'/status').once('value')).val();
+    if(st && st!=='pending'){ showToast('এই অর্ডার ইতিমধ্যে কনফার্ম হয়েছে, ডিলিট করা যাবে না'); return; }
+    await db.ref('orders/'+orderId).remove();
+    resellerProfitCache.filter(h=>h.orderId===orderId).forEach(h=>{
+      db.ref('resellerProfitHistory/'+currentUser.uid+'/'+h.id).remove().catch(()=>{});
+    });
+    if(o.referrerUid) db.ref('referralOrderLog/'+o.referrerUid+'/'+orderId).remove().catch(()=>{});
+    showToast('অর্ডার ডিলিট হয়েছে');
+    openOrdersListPanel();
+  }catch(e){
+    showToast('ডিলিট করা যায়নি, আবার চেষ্টা করুন');
+  }
+}
+
+/* কাস্টমারকে দেওয়ার জন্য ছোট ইনভয়েস ছবি (PNG) — রিসেলারের শপের নাম/ইমেইল/মোবাইল, কাস্টমারের তথ্য, প্রোডাক্ট,
+   ডেলিভারি চার্জ, অগ্রিম ও মোট টাকা থাকে। রিসেলারের প্রফিট/Reseller Price কখনোই থাকে না। */
+async function downloadInvoice(orderId){
+  const o = resellerOrdersCache.find(x=>x.orderId===orderId);
+  if(!o) return;
+  const p = currentUserProfile || {};
+  const shop = String(p.shopName||'').trim() || 'Online Shop';
+  const email = String(p.email || (currentUser && currentUser.email) || '').trim();
+  const phone = String(p.phone||'').trim();
+  try{
+    if(document.fonts && document.fonts.load){
+      await Promise.all([
+        document.fonts.load('400 14px "Hind Siliguri"'),
+        document.fonts.load('600 14px "Hind Siliguri"'),
+        document.fonts.load('700 14px "Hind Siliguri"')
+      ]);
+    }
+  }catch(e){}
+  const W = 760, PAD = 28, SC = 2;
+  const FF = '"Hind Siliguri","Inter",sans-serif';
+  const mctx = document.createElement('canvas').getContext('2d');
+  function wrapText(text, maxW, font){
+    mctx.font = font;
+    const words = String(text||'').split(/\s+/).filter(Boolean);
+    const lines = []; let cur = '';
+    words.forEach(w=>{
+      const t = cur ? cur+' '+w : w;
+      if(!cur || mctx.measureText(t).width <= maxW) cur = t; else { lines.push(cur); cur = w; }
+    });
+    if(cur) lines.push(cur);
+    return lines.length ? lines : [''];
+  }
+  const d = new Date(o.createdAt || Date.now());
+  const dateStr = String(d.getDate()).padStart(2,'0')+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+d.getFullYear();
+  const addrLines = wrapText([o.address,o.thana,o.district].filter(Boolean).join(', '), W-PAD*2, '400 14px '+FF);
+  const colQty = 372, colUnit = 560, colTotal = W-PAD, nameW = colQty-PAD-14;
+  const rows = (o.items||[]).map(it=>{
+    const label = (it.name||'') + (it.color?' ('+it.color+')':'') + (it.size?' ['+it.size+']':'');
+    return {lines: wrapText(label, nameW, '500 14px '+FF), qty: it.qty||1, unit: Number(it.price)||0};
+  });
+  const advance = Number(o.advanceAmount)||0;
+  const grand = Number(o.grandTotal)||0;
+  const totals = [
+    ['Sub Total', fmtTk(o.productTotal), false],
+    ['Delivery Charge', fmtTk(o.deliveryCharge), false],
+    ['Grand Total', fmtTk(grand), true]
+  ];
+  if(advance > 0){
+    totals.push(['Advance Paid', '- '+fmtTk(advance), false]);
+    totals.push(['Due on Delivery', fmtTk(Math.max(0, grand-advance)), true]);
+  }
+  const headerH = 112;
+  let H = headerH + 24 + 20 + 24 + addrLines.length*20 + 22 + 22;      // Bill to block
+  H += 40;                                                           // table head
+  rows.forEach(r=>{ H += r.lines.length*20 + 16; });
+  H += 18 + totals.length*28 + 14;
+  if(advance <= 0) H += 28;                                           // COD line
+  H += 46;                                                           // footer
+  const cv = document.createElement('canvas');
+  cv.width = W*SC; cv.height = H*SC;
+  const c = cv.getContext('2d');
+  c.scale(SC, SC);
+  c.fillStyle = '#FFFFFF'; c.fillRect(0,0,W,H);
+  c.textBaseline = 'alphabetic';
+  // header band
+  c.fillStyle = '#EDF0F4'; c.fillRect(0,0,W,headerH);
+  c.fillStyle = '#171718'; c.font = '700 20px '+FF; c.textAlign = 'left';
+  c.fillText(shop, PAD, 38);
+  c.fillStyle = '#6B7280'; c.font = '400 13.5px '+FF;
+  let hy = 62;
+  if(email){ c.fillText('Email: '+email, PAD, hy); hy += 22; }
+  if(phone){ c.fillText('Phone: '+phone, PAD, hy); }
+  c.textAlign = 'right';
+  c.fillStyle = '#171718'; c.font = '600 26px '+FF; c.fillText('INVOICE', W-PAD, 40);
+  c.fillStyle = '#6B7280'; c.font = '400 13.5px '+FF;
+  c.fillText('Order ID: '+orderId, W-PAD, 68);
+  c.fillText('Order Date: '+dateStr, W-PAD, 90);
+  c.textAlign = 'left';
+  // bill to
+  let y = headerH + 30;
+  c.fillStyle = '#6B7280'; c.font = '400 13.5px '+FF; c.fillText('Bill to:', PAD, y);
+  y += 24;
+  c.fillStyle = '#171718'; c.font = '700 16px '+FF; c.fillText(o.name||'-', PAD, y);
+  y += 22;
+  c.fillStyle = '#4B5563'; c.font = '400 14px '+FF;
+  addrLines.forEach(l=>{ c.fillText(l, PAD, y); y += 20; });
+  c.fillText('Phone: '+(o.phone||'-'), PAD, y);
+  y += 26;
+  // table head
+  c.fillStyle = '#EDF0F4'; c.fillRect(PAD-8, y, W-PAD*2+16, 32);
+  c.fillStyle = '#171718'; c.font = '600 13.5px '+FF;
+  c.fillText('Product Name', PAD, y+21);
+  c.fillText('Qty', colQty, y+21);
+  c.textAlign = 'right'; c.fillText('Unit price', colUnit, y+21); c.fillText('Total', colTotal, y+21); c.textAlign = 'left';
+  y += 32;
+  // rows
+  rows.forEach(r=>{
+    const top = y + 22;
+    c.fillStyle = '#171718'; c.font = '500 14px '+FF;
+    r.lines.forEach((l,i)=>{ c.fillText(l, PAD, top + i*20); });
+    c.fillText(String(r.qty), colQty, top);
+    c.textAlign = 'right';
+    c.fillText(fmtTk(r.unit), colUnit, top);
+    c.fillText(fmtTk(r.unit*r.qty), colTotal, top);
+    c.textAlign = 'left';
+    y += r.lines.length*20 + 16;
+    c.strokeStyle = '#E5E7EB'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(PAD-8, y); c.lineTo(W-PAD+8, y); c.stroke();
+  });
+  // totals
+  y += 12;
+  totals.forEach(t=>{
+    y += 28;
+    c.fillStyle = t[2] ? '#171718' : '#6B7280';
+    c.font = (t[2]?'700 15px ':'400 14px ')+FF;
+    c.textAlign = 'left'; c.fillText(t[0], W-PAD-250, y-6);
+    c.textAlign = 'right'; c.fillText(t[1], W-PAD, y-6);
+  });
+  c.textAlign = 'left';
+  if(advance <= 0){
+    y += 28;
+    c.fillStyle = '#E85A0A'; c.font = '600 13.5px '+FF;
+    c.textAlign = 'right'; c.fillText('Payment: Cash on Delivery', W-PAD, y-6); c.textAlign = 'left';
+  }
+  // footer
+  c.fillStyle = '#9CA3AF'; c.font = '400 12.5px '+FF; c.textAlign = 'center';
+  c.fillText('Thank you for your order', W/2, H-18);
+  c.textAlign = 'left';
+  cv.toBlob(blob=>{
+    if(!blob){ showToast('ইনভয়েস তৈরি করা যায়নি'); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'invoice-'+orderId+'.png';
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ a.remove(); URL.revokeObjectURL(url); }, 1500);
+    showToast('ইনভয়েস ডাউনলোড হচ্ছে');
+  }, 'image/png');
+}
+
 /* Warranty থাকা প্রোডাক্টের ডেলিভার্ড অর্ডারে Return/Change রিকোয়েস্ট — অর্ডারেই ফ্ল্যাগ হিসেবে
    সংরক্ষণ হয়, যাতে এডমিন প্যানেলে (Order Details-এ) এটা দেখা যায়। */
 async function handleReturnRequest(orderId){
@@ -3664,6 +3981,151 @@ function openOrdersListPanel(){
   showPanel('resellerOrdersPanel');
 }
 document.getElementById('resellerOrdersBack').addEventListener('click', ()=>showPanel('profilePanel'));
+
+/* ===================== NOTIFICATION (শুধু রিসেলারদের জন্য) =====================
+   অর্ডার করা / কনফার্ম / প্রসেসিং / শিপিং / ডেলিভারি / ক্যান্সেল — প্রতিটা ধাপ আলাদা মেসেজ হিসেবে থাকে।
+   এডমিন প্যানেলের "Notice" থেকে পাঠানো বার্তা নোটিশ আকারে দেখায়। নতুন কিছু এলে ঘন্টায় কমলা চিহ্ন + সাউন্ড। */
+let noticesCache = {};
+const notifFlags = {orders:false, notices:false};
+let notifKnown = null;
+let notifPanelSeen = 0;
+let _notifAudioCtx = null;
+const NOTIF_MSG = {
+  placed:'অর্ডার করা হয়েছে',
+  confirmed:'অর্ডার কনফার্ম করা হয়েছে',
+  processing:'অর্ডার প্রসেসিং-এ আছে',
+  shipped:'অর্ডার শিপিং করা হয়েছে (পথে আছে)',
+  delivered:'অর্ডার ডেলিভারি হয়েছে',
+  cancelled:'অর্ডার ক্যান্সেল করা হয়েছে'
+};
+function notifSeenKey(){ return 'dps_notif_seen_' + (currentUser ? currentUser.uid : 'x'); }
+function unlockNotifAudio(){
+  try{
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    if(!_notifAudioCtx) _notifAudioCtx = new AC();
+    if(_notifAudioCtx.state === 'suspended') _notifAudioCtx.resume();
+  }catch(e){}
+}
+['click','touchstart','keydown'].forEach(ev=>document.addEventListener(ev, unlockNotifAudio, {passive:true}));
+function playNotifSound(){
+  try{
+    unlockNotifAudio();
+    const ctx = _notifAudioCtx;
+    if(!ctx || ctx.state !== 'running') return;
+    [[880,0],[1175,0.16]].forEach(([f,delay])=>{
+      const t0 = ctx.currentTime + delay;
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.25, t0+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0+0.28);
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start(t0); osc.stop(t0+0.3);
+    });
+  }catch(e){}
+}
+function buildNotifEvents(){
+  const ev = [];
+  resellerOrdersCache.forEach(o=>{
+    if(!o || !o.orderId) return;
+    const t = o.statusTimes || {};
+    ev.push({id:'o:'+o.orderId+':placed', type:'order', orderId:o.orderId, status:'placed', ts:Number(o.createdAt)||0});
+    ['confirmed','processing','shipped','delivered','cancelled'].forEach(st=>{
+      if(t[st]) ev.push({id:'o:'+o.orderId+':'+st, type:'order', orderId:o.orderId, status:st, ts:Number(t[st])||0});
+    });
+    /* পুরনো অর্ডার (যেগুলোতে ধাপের সময় সংরক্ষিত নেই) — বর্তমান অবস্থাটাই দেখাবে */
+    if(!Object.keys(t).length && o.status && o.status!=='pending'){
+      const st = (o.status==='completed') ? 'delivered' : o.status;
+      if(NOTIF_MSG[st]) ev.push({id:'o:'+o.orderId+':'+st, type:'order', orderId:o.orderId, status:st, ts:Number(o.deliveredAt||o.createdAt)||0});
+    }
+  });
+  Object.entries(noticesCache||{}).forEach(([k,n])=>{
+    if(n && (n.title || n.text)) ev.push({id:'n:'+k, type:'notice', title:n.title||'', text:n.text||'', ts:Number(n.createdAt)||0});
+  });
+  ev.sort((a,b)=>b.ts-a.ts);
+  return ev;
+}
+function updateBellVisibility(){
+  const bell = document.getElementById('profileBellBtn');
+  if(!bell) return;
+  const show = !!(currentUser && currentUser.emailVerified && isActiveReseller());
+  bell.classList.toggle('hidden', !show);
+}
+function setNotifBadge(unread){
+  const dot = document.getElementById('profileBellDot');
+  if(dot){ dot.textContent = unread>9 ? '9+' : String(unread); dot.classList.toggle('hidden', !(unread>0 && isActiveReseller())); }
+  const navP = document.querySelector('.nav-item[data-nav="profile"]');
+  if(navP) navP.classList.toggle('has-notif', unread>0 && isActiveReseller());
+}
+function markNotifSeen(evs){
+  if(!evs.length) return;
+  try{ localStorage.setItem(notifSeenKey(), String(evs[0].ts)); }catch(e){}
+  setNotifBadge(0);
+}
+function renderNotifPanel(evs, seen){
+  const body = document.getElementById('notifBody');
+  if(!body) return;
+  if(!evs.length){ body.innerHTML = `<div class="notif-empty">এখনও কোনো নোটিফিকেশন নেই</div>`; return; }
+  body.innerHTML = `<div style="padding:16px 14px 40px;">` + evs.map(e=>{
+    const unread = e.ts > seen;
+    if(e.type === 'notice'){
+      return `<div class="notif-card notice ${unread?'unread':''}">
+        <div class="notif-top"><span class="notif-tag">নোটিশ</span><span class="notif-date">${fmtDateBn(e.ts)}</span></div>
+        ${e.title?`<div class="notif-notice-title">${escapeNotif(e.title)}</div>`:''}
+        ${e.text?`<div class="notif-msg">${escapeNotif(e.text)}</div>`:''}
+      </div>`;
+    }
+    const ui = ORDER_STATUS_UI[e.status] || ORDER_STATUS_UI.pending;
+    const pill = (e.status==='placed') ? ORDER_STATUS_UI.pending : ui;
+    return `<div class="notif-card ${unread?'unread':''}" data-notif-order="${escapeNotif(e.orderId)}">
+      <div class="notif-top"><span class="notif-id">#${escapeNotif(e.orderId)}</span><span class="order-status-pill ${pill.cls}">${e.status==='placed'?'নতুন':pill.label}</span></div>
+      <div class="notif-msg">${NOTIF_MSG[e.status]||''}</div>
+      <div class="notif-date">${fmtDateBn(e.ts)}</div>
+    </div>`;
+  }).join('') + `</div>`;
+  body.querySelectorAll('[data-notif-order]').forEach(el=>{
+    el.addEventListener('click', ()=>openOrderDetailModal(el.getAttribute('data-notif-order')));
+  });
+}
+function escapeNotif(v){ const d = document.createElement('div'); d.textContent = v==null?'':String(v); return d.innerHTML; }
+function refreshNotifications(){
+  updateBellVisibility();
+  if(!currentUser || !isActiveReseller()){ setNotifBadge(0); return; }
+  if(!notifFlags.orders || !notifFlags.notices) return;      // দুটো ডেটাই আসার আগে সাউন্ড/ব্যাজ হিসাব নয়
+  const evs = buildNotifEvents();
+  let seen = null;
+  try{ seen = localStorage.getItem(notifSeenKey()); }catch(e){}
+  if(seen === null){
+    /* এই ডিভাইসে প্রথমবার: আগের সব মেসেজ পড়া ধরা হবে, শুধু নতুনগুলো চিহ্ন দেখাবে */
+    seen = evs.length ? evs[0].ts : Date.now();
+    try{ localStorage.setItem(notifSeenKey(), String(seen)); }catch(e){}
+  }
+  seen = Number(seen);
+  const panel = document.getElementById('notifPanel');
+  const panelOpen = panel && !panel.classList.contains('hidden');
+  const fresh = notifKnown ? evs.filter(e=>!notifKnown.has(e.id) && e.ts > seen) : [];
+  notifKnown = new Set(evs.map(e=>e.id));
+  if(fresh.length) playNotifSound();
+  if(panelOpen){ renderNotifPanel(evs, notifPanelSeen); markNotifSeen(evs); }
+  else setNotifBadge(evs.filter(e=>e.ts > seen).length);
+}
+function notifReset(){
+  notifFlags.orders = false; notifKnown = null; noticesCache = {};
+  setNotifBadge(0); updateBellVisibility();
+}
+function openNotifPanel(){
+  unlockNotifAudio();
+  const evs = buildNotifEvents();
+  let seen = 0;
+  try{ seen = Number(localStorage.getItem(notifSeenKey())||0); }catch(e){}
+  notifPanelSeen = seen;
+  renderNotifPanel(evs, seen);
+  showPanel('notifPanel');
+  markNotifSeen(evs);
+}
+document.getElementById('profileBellBtn').addEventListener('click', openNotifPanel);
+document.getElementById('notifBack').addEventListener('click', ()=>showPanel('profilePanel'));
 
 /* INITIALIZATION */
 window.addEventListener('DOMContentLoaded', ()=>{

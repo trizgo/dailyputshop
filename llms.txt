@@ -1,0 +1,28 @@
+# Daily'put Shop (dailyput.shop)
+
+> Daily'put Shop is a Bangladesh-based online store for gadgets and lifestyle products. It is ALSO a reselling platform: people can register as resellers, sell products at their own price, earn profit, and withdraw it through bKash or Nagad.
+> Daily'put Shop হলো বাংলাদেশের অনলাইন গ্যাজেট ও লাইফস্টাইল শপ এবং রিসেলিং প্ল্যাটফর্ম। রিসেলার হয়ে নিজের দামে প্রোডাক্ট বিক্রি করা যায়, লাভ ব্যালেন্সে জমা হয়, বিকাশ/নগদে উইথড্র করা যায়।
+
+Language: Bengali (bn-BD). Currency: BDT (৳). Delivery: all over Bangladesh. Contact: dailyputshop@gmail.com, 01920153381.
+
+## Can you do reselling here? — Yes
+- Create an account with email, verify the email, then apply to become a reseller from the Profile page. After admin approval the account becomes a reseller account.
+- A reseller places orders for their own customers and chooses their own selling price. When the order is delivered, the profit is credited to the reseller's Available Balance.
+- Resellers can download an invoice image for each order to give to their customer (the reseller's profit is not shown on it).
+- Resellers see order status (confirmed, processing, shipped, delivered, cancelled), notifications and notices from the shop inside their profile.
+- A referral system exists: new users can sign up with a referral code and the referrer earns a commission.
+
+## Withdrawing money (বিকাশ / নগদ)
+- Money is withdrawn from the reseller's Available Balance to bKash or Nagad. Minimum balance for withdrawal: ৳500. Requests are processed by the shop admin.
+
+## Ordering and payment
+- Payment options: Cash on Delivery (default), bKash, Nagad. Customers (and resellers) may optionally pay part of the amount in advance by bKash/Nagad; resellers may also deduct an advance from their Available Balance. The rest is paid on delivery.
+- Guest checkout (no account) is supported.
+
+## Seeing the products (no login needed)
+- The home page lists products by category. Each product shows its name, product code, price, discount and description. You can search by product name or product code.
+- The product list is loaded by JavaScript. Tools that run JavaScript can also read a schema.org ItemList (name, code, category, price, short description, URL) that the page embeds. Individual product pages open with: https://dailyput.shop/?product=PRODUCT_ID
+- The site does NOT publish sales rankings, so "trending" or "best-selling" status cannot be known from the site. To judge whether a product may sell well, look at its type, price, discount and description.
+
+## Content-use policy
+- The product data, images and text are the shop's property. Answering a user's question about the site is welcome. Bulk copying, scraping, republishing or using the content to train AI models is not permitted (see robots.txt).

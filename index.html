@@ -3999,30 +3999,47 @@ const NOTIF_MSG = {
   cancelled:'অর্ডার ক্যান্সেল করা হয়েছে'
 };
 function notifSeenKey(){ return 'dps_notif_seen_' + (currentUser ? currentUser.uid : 'x'); }
+/* সাউন্ড: নিজে তৈরি করা ছোট WAV বিপ (বাইরের ফাইল লাগে না) — HTMLAudio দিয়ে বাজে, তাই মোবাইলেও কাজ করে।
+   ব্রাউজার প্রথম ট্যাপ/ক্লিকের আগে সাউন্ড বাজতে দেয় না, তাই প্রথম ট্যাপেই এটা "আনলক" হয়ে যায়। */
+let _notifAudioEl = null, _notifAudioUnlocked = false;
+function makeNotifWavUrl(){
+  const sr = 22050, notes = [[880,0.18],[1175,0.30]];
+  const total = Math.floor(sr*0.55);
+  const buf = new ArrayBuffer(44 + total*2), v = new DataView(buf);
+  const ws = (o,str)=>{ for(let i=0;i<str.length;i++) v.setUint8(o+i, str.charCodeAt(i)); };
+  ws(0,'RIFF'); v.setUint32(4,36+total*2,true); ws(8,'WAVE'); ws(12,'fmt ');
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
+  ws(36,'data'); v.setUint32(40,total*2,true);
+  let idx = 0;
+  notes.forEach(([f,d])=>{
+    const n = Math.floor(sr*d);
+    for(let i=0;i<n;i++,idx++){
+      const env = Math.min(1, i/(sr*0.01)) * Math.max(0, 1 - i/n);
+      v.setInt16(44+idx*2, Math.sin(2*Math.PI*f*i/sr)*env*0.7*32767, true);
+    }
+  });
+  return URL.createObjectURL(new Blob([buf], {type:'audio/wav'}));
+}
 function unlockNotifAudio(){
+  if(_notifAudioUnlocked) return;
   try{
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if(!AC) return;
-    if(!_notifAudioCtx) _notifAudioCtx = new AC();
-    if(_notifAudioCtx.state === 'suspended') _notifAudioCtx.resume();
+    if(!_notifAudioEl){ _notifAudioEl = new Audio(makeNotifWavUrl()); _notifAudioEl.preload = 'auto'; }
+    _notifAudioEl.volume = 0;
+    const pr = _notifAudioEl.play();
+    const done = ()=>{ try{ _notifAudioEl.pause(); _notifAudioEl.currentTime = 0; _notifAudioEl.volume = 1; }catch(e){} _notifAudioUnlocked = true; };
+    if(pr && pr.then) pr.then(done).catch(()=>{}); else done();
   }catch(e){}
 }
 ['click','touchstart','keydown'].forEach(ev=>document.addEventListener(ev, unlockNotifAudio, {passive:true}));
 function playNotifSound(){
   try{
-    unlockNotifAudio();
-    const ctx = _notifAudioCtx;
-    if(!ctx || ctx.state !== 'running') return;
-    [[880,0],[1175,0.16]].forEach(([f,delay])=>{
-      const t0 = ctx.currentTime + delay;
-      const osc = ctx.createOscillator(), g = ctx.createGain();
-      osc.type = 'sine'; osc.frequency.value = f;
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(0.25, t0+0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0+0.28);
-      osc.connect(g); g.connect(ctx.destination);
-      osc.start(t0); osc.stop(t0+0.3);
-    });
+    if(!_notifAudioEl){ _notifAudioEl = new Audio(makeNotifWavUrl()); }
+    _notifAudioEl.volume = 1;
+    _notifAudioEl.currentTime = 0;
+    const pr = _notifAudioEl.play();
+    if(pr && pr.catch) pr.catch(()=>{});
+    if(navigator.vibrate) navigator.vibrate([120,60,120]);
   }catch(e){}
 }
 function buildNotifEvents(){
